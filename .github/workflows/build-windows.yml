@@ -57,60 +57,114 @@ jobs:
       run: |
         # 检查并复制 OpenSSL DLL 文件（Qt 5.15.2 需要 OpenSSL 1.1.1）
         $QtBin = "$env:Qt5_DIR\bin"
+        Write-Host "Qt Bin 目录: $QtBin" -ForegroundColor Cyan
+        
+        # 尝试查找所有可能的 OpenSSL DLL 文件名
         $OpenSSLDLLs = @(
           "libcrypto-1_1.dll",
           "libssl-1_1.dll",
           "libcrypto-1_1-x64.dll",
-          "libssl-1_1-x64.dll"
+          "libssl-1_1-x64.dll",
+          "libcrypto.dll",
+          "libssl.dll"
         )
         
         $Copied = $false
+        
+        # 首先尝试从 Qt 目录复制
         foreach ($dll in $OpenSSLDLLs) {
           $srcPath = Join-Path $QtBin $dll
           if (Test-Path $srcPath) {
             Copy-Item $srcPath -Destination "release\" -Force
-            Write-Host "已复制 OpenSSL DLL: $dll" -ForegroundColor Green
+            Write-Host "已从 Qt 目录复制 OpenSSL DLL: $dll" -ForegroundColor Green
             $Copied = $true
           }
         }
         
+        # 如果 Qt 目录没有，尝试查找所有 libcrypto*.dll 和 libssl*.dll
         if (-not $Copied) {
-          Write-Host "警告: 未在 Qt 目录找到 OpenSSL DLL，尝试下载..." -ForegroundColor Yellow
-          # 下载 OpenSSL 1.1.1 DLL（Qt 5.15.2 兼容）
-          $OpenSSLUrl = "https://indy.fulgan.com/SSL/openssl-1.1.1u-x64_86-win64.zip"
-          $OpenSSLZip = "openssl.zip"
+          Write-Host "在 Qt 目录中查找 OpenSSL DLL..." -ForegroundColor Yellow
+          $libcrypto = Get-ChildItem -Path $QtBin -Filter "libcrypto*.dll" -ErrorAction SilentlyContinue | Select-Object -First 1
+          $libssl = Get-ChildItem -Path $QtBin -Filter "libssl*.dll" -ErrorAction SilentlyContinue | Select-Object -First 1
           
-          try {
-            Write-Host "正在下载 OpenSSL DLL..." -ForegroundColor Green
-            Invoke-WebRequest -Uri $OpenSSLUrl -OutFile $OpenSSLZip -UseBasicParsing
-            
-            Write-Host "正在解压 OpenSSL DLL..." -ForegroundColor Green
-            Expand-Archive -Path $OpenSSLZip -DestinationPath "openssl_temp" -Force
-            
-            # 查找并复制 DLL 文件
-            $libcrypto = Get-ChildItem -Path "openssl_temp" -Filter "libcrypto*.dll" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
-            $libssl = Get-ChildItem -Path "openssl_temp" -Filter "libssl*.dll" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
-            
-            if ($libcrypto -and $libssl) {
-              Copy-Item $libcrypto.FullName -Destination "release\" -Force
-              Copy-Item $libssl.FullName -Destination "release\" -Force
-              Write-Host "已下载并复制 OpenSSL DLL" -ForegroundColor Green
-              $Copied = $true
-            }
-            
-            # 清理临时文件
-            Remove-Item $OpenSSLZip -Force -ErrorAction SilentlyContinue
-            Remove-Item "openssl_temp" -Recurse -Force -ErrorAction SilentlyContinue
-          } catch {
-            Write-Host "下载 OpenSSL DLL 失败: $($_.Exception.Message)" -ForegroundColor Yellow
+          if ($libcrypto -and $libssl) {
+            Copy-Item $libcrypto.FullName -Destination "release\" -Force
+            Copy-Item $libssl.FullName -Destination "release\" -Force
+            Write-Host "已复制 OpenSSL DLL: $($libcrypto.Name) 和 $($libssl.Name)" -ForegroundColor Green
+            $Copied = $true
           }
         }
         
+        # 如果还是没找到，尝试下载
         if (-not $Copied) {
-          Write-Host "错误: 未找到或下载 OpenSSL DLL 文件" -ForegroundColor Red
-          Write-Host "SSL/TLS 功能可能无法正常工作" -ForegroundColor Yellow
+          Write-Host "未在 Qt 目录找到 OpenSSL DLL，尝试下载..." -ForegroundColor Yellow
+          
+          # 尝试多个下载源
+          $DownloadUrls = @(
+            "https://indy.fulgan.com/SSL/openssl-1.1.1u-x64_86-win64.zip",
+            "https://github.com/indygreg/openssl-1.1.1/releases/download/v1.1.1u/openssl-1.1.1u-x64_86-win64.zip"
+          )
+          
+          $Downloaded = $false
+          foreach ($url in $DownloadUrls) {
+            try {
+              Write-Host "尝试从 $url 下载..." -ForegroundColor Cyan
+              $OpenSSLZip = "openssl.zip"
+              
+              Invoke-WebRequest -Uri $url -OutFile $OpenSSLZip -UseBasicParsing -TimeoutSec 60
+              
+              if (Test-Path $OpenSSLZip) {
+                Write-Host "下载成功，正在解压..." -ForegroundColor Green
+                Expand-Archive -Path $OpenSSLZip -DestinationPath "openssl_temp" -Force
+                
+                # 查找 DLL 文件（可能在子目录中）
+                $libcrypto = Get-ChildItem -Path "openssl_temp" -Filter "libcrypto*.dll" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+                $libssl = Get-ChildItem -Path "openssl_temp" -Filter "libssl*.dll" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+                
+                if ($libcrypto -and $libssl) {
+                  Copy-Item $libcrypto.FullName -Destination "release\" -Force
+                  Copy-Item $libssl.FullName -Destination "release\" -Force
+                  Write-Host "已下载并复制 OpenSSL DLL: $($libcrypto.Name) 和 $($libssl.Name)" -ForegroundColor Green
+                  $Copied = $true
+                  $Downloaded = $true
+                  
+                  # 清理临时文件
+                  Remove-Item $OpenSSLZip -Force -ErrorAction SilentlyContinue
+                  Remove-Item "openssl_temp" -Recurse -Force -ErrorAction SilentlyContinue
+                  break
+                } else {
+                  Write-Host "解压后未找到 DLL 文件" -ForegroundColor Yellow
+                  Remove-Item $OpenSSLZip -Force -ErrorAction SilentlyContinue
+                  Remove-Item "openssl_temp" -Recurse -Force -ErrorAction SilentlyContinue
+                }
+              }
+            } catch {
+              Write-Host "下载失败: $($_.Exception.Message)" -ForegroundColor Yellow
+              continue
+            }
+          }
+        }
+        
+        # 验证 DLL 文件是否已复制
+        if ($Copied) {
+          $libcrypto = Get-ChildItem -Path "release" -Filter "libcrypto*.dll" -ErrorAction SilentlyContinue | Select-Object -First 1
+          $libssl = Get-ChildItem -Path "release" -Filter "libssl*.dll" -ErrorAction SilentlyContinue | Select-Object -First 1
+          
+          if ($libcrypto -and $libssl) {
+            Write-Host "========================================" -ForegroundColor Green
+            Write-Host "OpenSSL DLL 文件验证成功:" -ForegroundColor Green
+            Write-Host "  - $($libcrypto.Name)" -ForegroundColor Green
+            Write-Host "  - $($libssl.Name)" -ForegroundColor Green
+            Write-Host "========================================" -ForegroundColor Green
+          } else {
+            Write-Host "警告: DLL 文件可能未正确复制" -ForegroundColor Yellow
+          }
         } else {
-          Write-Host "OpenSSL DLL 文件已准备就绪" -ForegroundColor Green
+          Write-Host "========================================" -ForegroundColor Red
+          Write-Host "错误: 无法获取 OpenSSL DLL 文件" -ForegroundColor Red
+          Write-Host "SSL/TLS 功能将无法正常工作" -ForegroundColor Red
+          Write-Host "========================================" -ForegroundColor Red
+          exit 1
         }
     
     - name: Create portable package

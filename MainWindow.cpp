@@ -43,7 +43,7 @@ MainWindow::MainWindow(QWidget *parent)
     setupStyles();
     
     setWindowTitle("数据上传工具");
-    resize(1200, 750);
+    resize(1600, 1000);
 }
 
 MainWindow::~MainWindow()
@@ -144,11 +144,13 @@ void MainWindow::setupUI()
     connect(btnStart, &QPushButton::clicked, this, &MainWindow::onStartClicked);
     connect(btnStop, &QPushButton::clicked, this, &MainWindow::onStopClicked);
     
-    // 左侧布局
-    leftLayout->addWidget(inputSection, 1);
-    leftLayout->addStretch();
+    // 左侧布局 - 从上到下排列，不垂直居中
+    leftLayout->addWidget(inputSection);
+    leftLayout->addSpacing(20);
     leftLayout->addWidget(btnStart);
+    leftLayout->addSpacing(10);
     leftLayout->addWidget(btnStop);
+    leftLayout->addStretch();  // 只在底部添加弹性空间，保持内容靠上
     
     // 右侧面板 - 日志区域
     logArea = new QTextEdit();
@@ -236,18 +238,18 @@ void MainWindow::setupStyles()
         
         QPushButton#btnStart {
             color: #ffffff;
-            background-color: #28a745;
-            border-color: #28a745;
+            background-color: #00c853;
+            border-color: #00c853;
         }
         
         QPushButton#btnStart:hover {
-            background-color: #218838;
-            border-color: #1e7e34;
+            background-color: #00b248;
+            border-color: #009624;
         }
         
         QPushButton#btnStart:pressed {
-            background-color: #1e7e34;
-            border-color: #1c7430;
+            background-color: #009624;
+            border-color: #008018;
             padding-top: 13px;
             padding-bottom: 11px;
         }
@@ -261,18 +263,18 @@ void MainWindow::setupStyles()
         
         QPushButton#btnStop {
             color: #ffffff;
-            background-color: #dc3545;
-            border-color: #dc3545;
+            background-color: #ff1744;
+            border-color: #ff1744;
         }
         
         QPushButton#btnStop:hover {
-            background-color: #c82333;
-            border-color: #bd2130;
+            background-color: #f50057;
+            border-color: #e91e63;
         }
         
         QPushButton#btnStop:pressed {
-            background-color: #bd2130;
-            border-color: #b21f2d;
+            background-color: #e91e63;
+            border-color: #c2185b;
             padding-top: 13px;
             padding-bottom: 11px;
         }
