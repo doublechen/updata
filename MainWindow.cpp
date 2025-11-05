@@ -205,7 +205,7 @@ void MainWindow::setupStyles()
             color: #000000;
             font-size: 18px;
             margin-bottom: 6px;
-            font-family: "Consolas", "Courier New", monospace;
+            font-family: "Microsoft YaHei", "Courier New", monospace;
         }
         
         QLineEdit {
@@ -546,12 +546,23 @@ void MainWindow::fetchData()
     inquirySuccess = false;
     pendingRequests = 3;
     
+    // 本地接口超时时间：5秒
+    const int localTimeout = 5000;
+    
     // 获取rawinfo数据
     QUrl rawInfoUrl(httpAddress + "/rawinfo");
     QNetworkRequest rawInfoRequest(rawInfoUrl);
     rawInfoRequest.setRawHeader("User-Agent", "DataUploadTool/1.0");
     rawInfoReply = networkManager->get(rawInfoRequest);
     connect(rawInfoReply, &QNetworkReply::finished, this, &MainWindow::onRawInfoFinished);
+    
+    // 设置超时定时器
+    QTimer::singleShot(localTimeout, this, [this]() {
+        if (rawInfoReply && rawInfoReply->isRunning()) {
+            addLog("获取赛程数据超时(5秒)", "warning");
+            rawInfoReply->abort();
+        }
+    });
     
     // 获取allplay数据
     QUrl allPlayUrl(httpAddress + "/allplay");
@@ -560,6 +571,14 @@ void MainWindow::fetchData()
     allPlayReply = networkManager->get(allPlayRequest);
     connect(allPlayReply, &QNetworkReply::finished, this, &MainWindow::onAllPlayFinished);
     
+    // 设置超时定时器
+    QTimer::singleShot(localTimeout, this, [this]() {
+        if (allPlayReply && allPlayReply->isRunning()) {
+            addLog("获取比赛数据超时(5秒)", "warning");
+            allPlayReply->abort();
+        }
+    });
+    
     // 获取InquiryPage数据
     QUrl inquiryUrl(httpAddress + "/InquiryPage");
     QNetworkRequest inquiryRequest(inquiryUrl);
@@ -567,6 +586,14 @@ void MainWindow::fetchData()
     inquiryRequest.setHeader(QNetworkRequest::ContentTypeHeader, "application/x-www-form-urlencoded");
     inquiryReply = networkManager->post(inquiryRequest, QByteArray());
     connect(inquiryReply, &QNetworkReply::finished, this, &MainWindow::onInquiryFinished);
+    
+    // 设置超时定时器
+    QTimer::singleShot(localTimeout, this, [this]() {
+        if (inquiryReply && inquiryReply->isRunning()) {
+            addLog("获取比赛数据超时(5秒)", "warning");
+            inquiryReply->abort();
+        }
+    });
 }
 
 void MainWindow::onRawInfoFinished()
@@ -744,6 +771,14 @@ void MainWindow::uploadData()
     multiPart->setParent(uploadReply); // 删除reply时自动删除multiPart
     
     connect(uploadReply, &QNetworkReply::finished, this, &MainWindow::onUploadFinished);
+    
+    // 服务器接口超时时间：60秒
+    QTimer::singleShot(60000, this, [this]() {
+        if (uploadReply && uploadReply->isRunning()) {
+            addLog("上传数据超时(60秒)", "warning");
+            uploadReply->abort();
+        }
+    });
 }
 
 void MainWindow::onUploadFinished()
@@ -758,8 +793,21 @@ void MainWindow::onUploadFinished()
     
     if (uploadReply->error() == QNetworkReply::NoError) {
         QByteArray response = uploadReply->readAll();
-        QString responseText = QString::fromUtf8(response);
-        addLog("上传成功，服务器响应: " + responseText, "success");
+        QJsonParseError parseError;
+        QJsonDocument doc = QJsonDocument::fromJson(response, &parseError);
+
+        if (parseError.error != QJsonParseError::NoError || !doc.isObject()) {
+            addLog("响应解析失败，原始响应: " + QString::fromUtf8(response), "error");
+        } else {
+            QJsonObject obj = doc.object();
+            int code = obj.value("code").toInt(1); // 默认为失败
+            QString msg = obj.value("msg").toString();
+            if (code == 0) {
+                addLog("上传成功，服务器响应: " + QString::fromUtf8(response), "success");
+            } else {
+                addLog("上传失败: " + (msg.isEmpty() ? QString::fromUtf8(response) : msg), "error");
+            }
+        }
     } else {
         QByteArray response = uploadReply->readAll();
         QString responseText = QString::fromUtf8(response);
