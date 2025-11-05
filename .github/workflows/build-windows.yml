@@ -1,0 +1,64 @@
+name: Build Windows EXE
+
+on:
+  push:
+    branches: [ main, master ]
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Qt 5.15.2
+      uses: jurplel/install-qt-action@v3
+      with:
+        version: '5.15.2'
+        modules: 'qtbase qtnetwork qtdeclarative'
+        arch: 'win64_msvc2019_64'
+    
+    - name: Setup MSVC
+      uses: microsoft/setup-msbuild@v1
+    
+    - name: Configure CMake
+      working-directory: qt-app
+      run: |
+        cmake -B build -S . `
+          -DCMAKE_BUILD_TYPE=Release `
+          -DCMAKE_PREFIX_PATH="$env:Qt5_DIR" `
+          -G "Visual Studio 16 2019" `
+          -A x64
+    
+    - name: Build
+      working-directory: qt-app
+      run: cmake --build build --config Release --parallel
+    
+    - name: Create release directory
+      working-directory: qt-app
+      run: |
+        mkdir release
+    
+    - name: Copy executable
+      working-directory: qt-app
+      run: |
+        copy build\Release\DataUploadTool.exe release\
+    
+    - name: Package with windeployqt
+      working-directory: qt-app/release
+      run: |
+        $env:Qt5_DIR\bin\windeployqt.exe DataUploadTool.exe
+    
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: DataUploadTool-Windows-EXE
+        path: qt-app/release/*
+        retention-days: 30
+

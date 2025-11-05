@@ -1,0 +1,43 @@
+# 构建目录
+build/
+build-*/
+release/
+
+# CMake生成文件
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+*.cmake
+!CMakeLists.txt
+
+# 编译输出
+*.exe
+*.obj
+*.o
+*.dll
+*.lib
+*.exp
+*.ilk
+*.pdb
+
+# Visual Studio
+.vs/
+*.vcxproj
+*.vcxproj.filters
+*.vcxproj.user
+*.sln
+*.suo
+*.user
+*.userosscache
+*.sdf
+
+# Qt Creator
+*.pro.user
+*.pro.user.*
+
+# 临时文件
+*~
+*.swp
+*.bak
+.DS_Store
+
