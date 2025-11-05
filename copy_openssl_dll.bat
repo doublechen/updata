@@ -25,24 +25,38 @@ if not exist "%RELEASE_DIR%\DataUploadTool.exe" (
     exit /b 1
 )
 
-REM 方法1: 优先从项目 dll/64 目录复制（64位版本，最可靠）
-if exist "dll\64\libcrypto-1_1.dll" if exist "dll\64\libssl-1_1.dll" (
-    copy "dll\64\libcrypto-1_1.dll" "%RELEASE_DIR%\" /Y >nul
-    copy "dll\64\libssl-1_1.dll" "%RELEASE_DIR%\" /Y >nul
-    echo 已从项目 dll/64 目录复制 OpenSSL DLL (64位版本)
-    echo   - libcrypto-1_1.dll
-    echo   - libssl-1_1.dll
+REM 方法1: 优先从项目 dll 目录复制（支持新的 x64 命名格式）
+if exist "dll\libcrypto-1_1-x64.dll" if exist "dll\libssl-1_1-x64.dll" (
+    copy "dll\libcrypto-1_1-x64.dll" "%RELEASE_DIR%\libcrypto-1_1.dll" /Y >nul
+    copy "dll\libssl-1_1-x64.dll" "%RELEASE_DIR%\libssl-1_1.dll" /Y >nul
+    echo 已从项目 dll 目录复制 OpenSSL DLL (x64版本，已重命名为标准名称)
+    echo   - libcrypto-1_1-x64.dll -^> libcrypto-1_1.dll
+    echo   - libssl-1_1-x64.dll -^> libssl-1_1.dll
     REM 继续查找Qt目录以复制SSL插件（不goto，继续执行）
 )
 
-REM 方法1b: 从项目 dll 目录复制（备用）
-if exist "dll\libcrypto-1_1.dll" if exist "dll\libssl-1_1.dll" (
-    copy "dll\libcrypto-1_1.dll" "%RELEASE_DIR%\" /Y >nul
-    copy "dll\libssl-1_1.dll" "%RELEASE_DIR%\" /Y >nul
-    echo 已从项目 dll 目录复制 OpenSSL DLL
-    echo   - libcrypto-1_1.dll
-    echo   - libssl-1_1.dll
-    REM 继续查找Qt目录以复制SSL插件
+REM 方法1b: 从项目 dll/64 目录复制（64位版本，最可靠）
+if not exist "%RELEASE_DIR%\libcrypto-1_1.dll" (
+    if exist "dll\64\libcrypto-1_1.dll" if exist "dll\64\libssl-1_1.dll" (
+        copy "dll\64\libcrypto-1_1.dll" "%RELEASE_DIR%\" /Y >nul
+        copy "dll\64\libssl-1_1.dll" "%RELEASE_DIR%\" /Y >nul
+        echo 已从项目 dll/64 目录复制 OpenSSL DLL (64位版本)
+        echo   - libcrypto-1_1.dll
+        echo   - libssl-1_1.dll
+        REM 继续查找Qt目录以复制SSL插件（不goto，继续执行）
+    )
+)
+
+REM 方法1c: 从项目 dll 目录复制标准名称文件（备用）
+if not exist "%RELEASE_DIR%\libcrypto-1_1.dll" (
+    if exist "dll\libcrypto-1_1.dll" if exist "dll\libssl-1_1.dll" (
+        copy "dll\libcrypto-1_1.dll" "%RELEASE_DIR%\" /Y >nul
+        copy "dll\libssl-1_1.dll" "%RELEASE_DIR%\" /Y >nul
+        echo 已从项目 dll 目录复制 OpenSSL DLL
+        echo   - libcrypto-1_1.dll
+        echo   - libssl-1_1.dll
+        REM 继续查找Qt目录以复制SSL插件
+    )
 )
 
 REM 方法2: 尝试从 Qt 目录复制

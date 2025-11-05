@@ -52,9 +52,9 @@ jobs:
     - name: Package with windeployqt
       working-directory: release
       run: |
-        # 使用 windeployqt 部署所有依赖，包括网络和 SSL 插件
-        # --ssl 标志确保 SSL 插件被正确部署
-        & "$env:Qt5_DIR\bin\windeployqt.exe" --compiler-runtime --network --ssl DataUploadTool.exe
+        # 使用 windeployqt 部署所有依赖，包括网络插件
+        # 注意: windeployqt 不支持 --ssl 选项，SSL 插件需要手动复制
+        & "$env:Qt5_DIR\bin\windeployqt.exe" --compiler-runtime --network DataUploadTool.exe
         Write-Host "windeployqt 完成，检查部署的文件..." -ForegroundColor Green
         
         # 检查关键文件是否存在
@@ -98,8 +98,18 @@ jobs:
         
         $Copied = $false
         
-        # 方法1: 优先从项目 dll/64 目录复制（64位版本，最可靠）
-        if ((Test-Path "dll\64\libcrypto-1_1.dll") -and (Test-Path "dll\64\libssl-1_1.dll")) {
+        # 方法1: 优先从项目 dll 目录复制（支持新的 x64 命名格式）
+        # 首先尝试查找新的 x64 命名格式文件
+        if ((Test-Path "dll\libcrypto-1_1-x64.dll") -and (Test-Path "dll\libssl-1_1-x64.dll")) {
+          # 复制新格式文件并重命名为标准名称
+          Copy-Item "dll\libcrypto-1_1-x64.dll" -Destination "release\libcrypto-1_1.dll" -Force
+          Copy-Item "dll\libssl-1_1-x64.dll" -Destination "release\libssl-1_1.dll" -Force
+          Write-Host "已从项目 dll 目录复制 OpenSSL DLL (x64版本，已重命名为标准名称)" -ForegroundColor Green
+          Write-Host "  - libcrypto-1_1-x64.dll -> libcrypto-1_1.dll" -ForegroundColor Green
+          Write-Host "  - libssl-1_1-x64.dll -> libssl-1_1.dll" -ForegroundColor Green
+          $Copied = $true
+        } elseif ((Test-Path "dll\64\libcrypto-1_1.dll") -and (Test-Path "dll\64\libssl-1_1.dll")) {
+          # 方法1b: 从 dll/64 目录复制（64位版本，最可靠）
           Copy-Item "dll\64\libcrypto-1_1.dll" -Destination "release\" -Force
           Copy-Item "dll\64\libssl-1_1.dll" -Destination "release\" -Force
           Write-Host "已从项目 dll/64 目录复制 OpenSSL DLL (64位版本)" -ForegroundColor Green
@@ -107,7 +117,7 @@ jobs:
           Write-Host "  - libssl-1_1.dll" -ForegroundColor Green
           $Copied = $true
         } elseif ((Test-Path "dll\libcrypto-1_1.dll") -and (Test-Path "dll\libssl-1_1.dll")) {
-          # 方法1b: 从 dll 目录复制（备用）
+          # 方法1c: 从 dll 目录复制标准名称文件（备用）
           Copy-Item "dll\libcrypto-1_1.dll" -Destination "release\" -Force
           Copy-Item "dll\libssl-1_1.dll" -Destination "release\" -Force
           Write-Host "已从项目 dll 目录复制 OpenSSL DLL" -ForegroundColor Green
@@ -157,7 +167,9 @@ jobs:
         } else {
           Write-Host "========================================" -ForegroundColor Red
           Write-Host "错误: 无法找到 OpenSSL DLL 文件" -ForegroundColor Red
-          Write-Host "请确保项目 dll 目录包含 libcrypto-1_1.dll 和 libssl-1_1.dll" -ForegroundColor Red
+          Write-Host "请确保项目 dll 目录包含以下文件之一:" -ForegroundColor Red
+          Write-Host "  - libcrypto-1_1-x64.dll 和 libssl-1_1-x64.dll" -ForegroundColor Red
+          Write-Host "  - libcrypto-1_1.dll 和 libssl-1_1.dll" -ForegroundColor Red
           Write-Host "========================================" -ForegroundColor Red
           exit 1
         }
