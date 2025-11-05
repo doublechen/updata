@@ -32,6 +32,10 @@ MainWindow::MainWindow(QWidget *parent)
     , allPlayReply(nullptr)
     , inquiryReply(nullptr)
     , uploadReply(nullptr)
+    , rawInfoTimer(nullptr)
+    , allPlayTimer(nullptr)
+    , inquiryTimer(nullptr)
+    , uploadTimer(nullptr)
     , pendingRequests(0)
     , logFile(nullptr)
     , logStream(nullptr)
@@ -40,6 +44,43 @@ MainWindow::MainWindow(QWidget *parent)
     taskTimer = new QTimer(this);
     taskTimer->setSingleShot(true);
     connect(taskTimer, &QTimer::timeout, this, &MainWindow::executeTask);
+    
+    // 初始化超时定时器
+    rawInfoTimer = new QTimer(this);
+    rawInfoTimer->setSingleShot(true);
+    connect(rawInfoTimer, &QTimer::timeout, this, [this]() {
+        if (rawInfoReply && rawInfoReply->isRunning()) {
+            addLog("获取赛程数据超时(5秒)", "warning");
+            rawInfoReply->abort();
+        }
+    });
+    
+    allPlayTimer = new QTimer(this);
+    allPlayTimer->setSingleShot(true);
+    connect(allPlayTimer, &QTimer::timeout, this, [this]() {
+        if (allPlayReply && allPlayReply->isRunning()) {
+            addLog("获取比赛数据超时(5秒)", "warning");
+            allPlayReply->abort();
+        }
+    });
+    
+    inquiryTimer = new QTimer(this);
+    inquiryTimer->setSingleShot(true);
+    connect(inquiryTimer, &QTimer::timeout, this, [this]() {
+        if (inquiryReply && inquiryReply->isRunning()) {
+            addLog("获取查询数据超时(5秒)", "warning");
+            inquiryReply->abort();
+        }
+    });
+    
+    uploadTimer = new QTimer(this);
+    uploadTimer->setSingleShot(true);
+    connect(uploadTimer, &QTimer::timeout, this, [this]() {
+        if (uploadReply && uploadReply->isRunning()) {
+            addLog("上传数据超时(60秒)", "warning");
+            uploadReply->abort();
+        }
+    });
     
     // 初始化日志文件
     initializeLogFile();
@@ -479,6 +520,12 @@ void MainWindow::onStopClicked()
 {
     isRunning = false;
     
+    // 停止所有超时定时器
+    rawInfoTimer->stop();
+    allPlayTimer->stop();
+    inquiryTimer->stop();
+    uploadTimer->stop();
+    
     // 取消所有正在进行的请求
     if (rawInfoReply) {
         rawInfoReply->abort();
@@ -631,12 +678,7 @@ void MainWindow::fetchData()
     connect(rawInfoReply, &QNetworkReply::finished, this, &MainWindow::onRawInfoFinished);
     
     // 设置超时定时器
-    QTimer::singleShot(localTimeout, this, [this]() {
-        if (rawInfoReply && rawInfoReply->isRunning()) {
-            addLog("获取赛程数据超时(5秒)", "warning");
-            rawInfoReply->abort();
-        }
-    });
+    rawInfoTimer->start(localTimeout);
     
     // 获取allplay数据
     QUrl allPlayUrl(httpAddress + "/allplay");
@@ -646,12 +688,7 @@ void MainWindow::fetchData()
     connect(allPlayReply, &QNetworkReply::finished, this, &MainWindow::onAllPlayFinished);
     
     // 设置超时定时器
-    QTimer::singleShot(localTimeout, this, [this]() {
-        if (allPlayReply && allPlayReply->isRunning()) {
-            addLog("获取比赛数据超时(5秒)", "warning");
-            allPlayReply->abort();
-        }
-    });
+    allPlayTimer->start(localTimeout);
     
     // 获取InquiryPage数据
     QUrl inquiryUrl(httpAddress + "/InquiryPage");
@@ -662,16 +699,14 @@ void MainWindow::fetchData()
     connect(inquiryReply, &QNetworkReply::finished, this, &MainWindow::onInquiryFinished);
     
     // 设置超时定时器
-    QTimer::singleShot(localTimeout, this, [this]() {
-        if (inquiryReply && inquiryReply->isRunning()) {
-            addLog("获取比赛数据超时(5秒)", "warning");
-            inquiryReply->abort();
-        }
-    });
+    inquiryTimer->start(localTimeout);
 }
 
 void MainWindow::onRawInfoFinished()
 {
+    // 停止超时定时器
+    rawInfoTimer->stop();
+    
     if (!isRunning) {
         if (rawInfoReply) {
             rawInfoReply->deleteLater();
@@ -707,6 +742,9 @@ void MainWindow::onRawInfoFinished()
 
 void MainWindow::onAllPlayFinished()
 {
+    // 停止超时定时器
+    allPlayTimer->stop();
+    
     if (!isRunning) {
         if (allPlayReply) {
             allPlayReply->deleteLater();
@@ -742,6 +780,9 @@ void MainWindow::onAllPlayFinished()
 
 void MainWindow::onInquiryFinished()
 {
+    // 停止超时定时器
+    inquiryTimer->stop();
+    
     if (!isRunning) {
         if (inquiryReply) {
             inquiryReply->deleteLater();
@@ -847,16 +888,14 @@ void MainWindow::uploadData()
     connect(uploadReply, &QNetworkReply::finished, this, &MainWindow::onUploadFinished);
     
     // 服务器接口超时时间：60秒
-    QTimer::singleShot(60000, this, [this]() {
-        if (uploadReply && uploadReply->isRunning()) {
-            addLog("上传数据超时(60秒)", "warning");
-            uploadReply->abort();
-        }
-    });
+    uploadTimer->start(60000);
 }
 
 void MainWindow::onUploadFinished()
 {
+    // 停止超时定时器
+    uploadTimer->stop();
+    
     if (!isRunning) {
         if (uploadReply) {
             uploadReply->deleteLater();

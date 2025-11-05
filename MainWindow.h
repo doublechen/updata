@@ -111,6 +111,12 @@ private:
     QNetworkReply *inquiryReply;
     QNetworkReply *uploadReply;
     
+    // 超时定时器
+    QTimer *rawInfoTimer;
+    QTimer *allPlayTimer;
+    QTimer *inquiryTimer;
+    QTimer *uploadTimer;
+    
     int pendingRequests;
     
     // 日志文件
