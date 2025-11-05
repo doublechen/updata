@@ -125,12 +125,12 @@ jobs:
     - name: Copy executable and resources
       run: |
         copy build\Release\DataUploadTool.exe release\
-        if (Test-Path "logo.png") {
-          copy logo.png release\
-        }
-        if (Test-Path "run_with_log.bat") {
-          copy run_with_log.bat release\
-        }
+        # if (Test-Path "logo.png") {
+        #   copy logo.png release\
+        # }
+        # if (Test-Path "run_with_log.bat") {
+        #   copy run_with_log.bat release\
+        # }
         Write-Host "已复制可执行文件和资源文件" -ForegroundColor Green
     
     - name: Package with windeployqt

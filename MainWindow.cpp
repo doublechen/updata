@@ -753,10 +753,10 @@ void MainWindow::uploadData()
     inquiryPart.setBody(inquiryData.trimmed().toUtf8());
     multiPart->append(inquiryPart);
     
-    addLog("准备上传multipart/form-data", "info");
-    addLog("rawinfo长度: " + QString::number(rawInfoData.trimmed().length()) + " 字符", "info");
-    addLog("allplay长度: " + QString::number(allPlayData.trimmed().length()) + " 字符", "info");
-    addLog("inquiry长度: " + QString::number(inquiryData.trimmed().length()) + " 字符", "info");
+    // addLog("准备上传multipart/form-data", "info");
+    // addLog("rawinfo长度: " + QString::number(rawInfoData.trimmed().length()) + " 字符", "info");
+    // addLog("allplay长度: " + QString::number(allPlayData.trimmed().length()) + " 字符", "info");
+    // addLog("inquiry长度: " + QString::number(inquiryData.trimmed().length()) + " 字符", "info");
     
     // 发送上传请求
     QUrl uploadUrlWithKey = QUrl(uploadUrl);
@@ -805,7 +805,7 @@ void MainWindow::onUploadFinished()
             int code = obj.value("code").toInt(1); // 默认为失败
             QString msg = obj.value("msg").toString();
             if (code == 0) {
-                addLog("上传成功，服务器响应: " + QString::fromUtf8(response), "success");
+                addLog("上传成功，服务器响应: " + (msg.isEmpty() ? QString::fromUtf8(response) : msg), "success");
             } else {
                 addLog("上传失败: " + (msg.isEmpty() ? QString::fromUtf8(response) : msg), "error");
             }
