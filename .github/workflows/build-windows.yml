@@ -121,6 +121,7 @@ jobs:
     - name: Create release directory
       run: |
         mkdir release
+        mkdir release\lib
     
     - name: Copy executable and resources
       run: |
@@ -137,10 +138,27 @@ jobs:
       working-directory: release
       run: |
         # 使用 windeployqt 部署所有依赖
-        # 注意: windeployqt 会自动部署 SSL 插件（如果存在）
         Write-Host "使用 windeployqt 部署依赖..." -ForegroundColor Cyan
         & "$env:Qt5_DIR\bin\windeployqt.exe" --compiler-runtime --network DataUploadTool.exe 2>&1 | Out-Null
-        Write-Host "windeployqt 完成，检查部署的文件..." -ForegroundColor Green
+        Write-Host "windeployqt 完成，开始整理文件..." -ForegroundColor Green
+        
+        # 移动所有 DLL 到 lib 目录
+        Write-Host "移动 DLL 文件到 lib 目录..." -ForegroundColor Cyan
+        Get-ChildItem -Path . -Filter "*.dll" | ForEach-Object {
+          Move-Item $_.FullName -Destination "lib\" -Force
+          Write-Host "  移动: $($_.Name)" -ForegroundColor Gray
+        }
+        
+        # 创建 qt.conf 文件
+        Write-Host "创建 qt.conf 配置文件..." -ForegroundColor Cyan
+        "[Paths]" | Out-File -FilePath "qt.conf" -Encoding UTF8
+        "Prefix=." | Out-File -FilePath "qt.conf" -Encoding UTF8 -Append
+        "Plugins=plugins" | Out-File -FilePath "qt.conf" -Encoding UTF8 -Append
+        "Libraries=lib" | Out-File -FilePath "qt.conf" -Encoding UTF8 -Append
+        "Binaries=lib" | Out-File -FilePath "qt.conf" -Encoding UTF8 -Append
+        Write-Host "✓ qt.conf 已创建" -ForegroundColor Green
+        
+        Write-Host "文件整理完成，检查部署的文件..." -ForegroundColor Green
         
         # 检查关键文件是否存在
         if (Test-Path "platforms\qwindows.dll") {
@@ -176,9 +194,9 @@ jobs:
     
     - name: Copy OpenSSL DLL files
       run: |
-        # 优先从项目的 dll 目录复制 OpenSSL DLL 文件
+        # 优先从项目的 dll 目录复制 OpenSSL DLL 文件到 lib 目录
         Write-Host "========================================" -ForegroundColor Cyan
-        Write-Host "复制 OpenSSL DLL 文件" -ForegroundColor Cyan
+        Write-Host "复制 OpenSSL DLL 文件到 lib 目录" -ForegroundColor Cyan
         Write-Host "========================================" -ForegroundColor Cyan
         
         $Copied = $false
@@ -186,32 +204,32 @@ jobs:
         # 方法1: 优先从项目 dll 目录复制（支持新的 x64 命名格式）
         # 首先尝试查找新的 x64 命名格式文件
         if ((Test-Path "dll\libcrypto-1_1-x64.dll") -and (Test-Path "dll\libssl-1_1-x64.dll")) {
-          # 复制新格式文件并重命名为标准名称，同时也保留 x64 版本
-          Copy-Item "dll\libcrypto-1_1-x64.dll" -Destination "release\libcrypto-1_1.dll" -Force
-          Copy-Item "dll\libssl-1_1-x64.dll" -Destination "release\libssl-1_1.dll" -Force
-          Copy-Item "dll\libcrypto-1_1-x64.dll" -Destination "release\libcrypto-1_1-x64.dll" -Force
-          Copy-Item "dll\libssl-1_1-x64.dll" -Destination "release\libssl-1_1-x64.dll" -Force
-          Write-Host "已从项目 dll 目录复制 OpenSSL DLL (两种命名格式)" -ForegroundColor Green
-          Write-Host "  - libcrypto-1_1.dll (标准名称)" -ForegroundColor Green
-          Write-Host "  - libcrypto-1_1-x64.dll (x64名称)" -ForegroundColor Green
-          Write-Host "  - libssl-1_1.dll (标准名称)" -ForegroundColor Green
-          Write-Host "  - libssl-1_1-x64.dll (x64名称)" -ForegroundColor Green
+          # 复制到 lib 目录
+          Copy-Item "dll\libcrypto-1_1-x64.dll" -Destination "release\lib\libcrypto-1_1.dll" -Force
+          Copy-Item "dll\libssl-1_1-x64.dll" -Destination "release\lib\libssl-1_1.dll" -Force
+          Copy-Item "dll\libcrypto-1_1-x64.dll" -Destination "release\lib\libcrypto-1_1-x64.dll" -Force
+          Copy-Item "dll\libssl-1_1-x64.dll" -Destination "release\lib\libssl-1_1-x64.dll" -Force
+          Write-Host "已从项目 dll 目录复制 OpenSSL DLL 到 lib 目录 (两种命名格式)" -ForegroundColor Green
+          Write-Host "  - lib\libcrypto-1_1.dll (标准名称)" -ForegroundColor Green
+          Write-Host "  - lib\libcrypto-1_1-x64.dll (x64名称)" -ForegroundColor Green
+          Write-Host "  - lib\libssl-1_1.dll (标准名称)" -ForegroundColor Green
+          Write-Host "  - lib\libssl-1_1-x64.dll (x64名称)" -ForegroundColor Green
           $Copied = $true
         } elseif ((Test-Path "dll\64\libcrypto-1_1.dll") -and (Test-Path "dll\64\libssl-1_1.dll")) {
           # 方法1b: 从 dll/64 目录复制（64位版本，最可靠）
-          Copy-Item "dll\64\libcrypto-1_1.dll" -Destination "release\" -Force
-          Copy-Item "dll\64\libssl-1_1.dll" -Destination "release\" -Force
-          Write-Host "已从项目 dll/64 目录复制 OpenSSL DLL (64位版本)" -ForegroundColor Green
-          Write-Host "  - libcrypto-1_1.dll" -ForegroundColor Green
-          Write-Host "  - libssl-1_1.dll" -ForegroundColor Green
+          Copy-Item "dll\64\libcrypto-1_1.dll" -Destination "release\lib\" -Force
+          Copy-Item "dll\64\libssl-1_1.dll" -Destination "release\lib\" -Force
+          Write-Host "已从项目 dll/64 目录复制 OpenSSL DLL 到 lib 目录 (64位版本)" -ForegroundColor Green
+          Write-Host "  - lib\libcrypto-1_1.dll" -ForegroundColor Green
+          Write-Host "  - lib\libssl-1_1.dll" -ForegroundColor Green
           $Copied = $true
         } elseif ((Test-Path "dll\libcrypto-1_1.dll") -and (Test-Path "dll\libssl-1_1.dll")) {
           # 方法1c: 从 dll 目录复制标准名称文件（备用）
-          Copy-Item "dll\libcrypto-1_1.dll" -Destination "release\" -Force
-          Copy-Item "dll\libssl-1_1.dll" -Destination "release\" -Force
-          Write-Host "已从项目 dll 目录复制 OpenSSL DLL" -ForegroundColor Green
-          Write-Host "  - libcrypto-1_1.dll" -ForegroundColor Green
-          Write-Host "  - libssl-1_1.dll" -ForegroundColor Green
+          Copy-Item "dll\libcrypto-1_1.dll" -Destination "release\lib\" -Force
+          Copy-Item "dll\libssl-1_1.dll" -Destination "release\lib\" -Force
+          Write-Host "已从项目 dll 目录复制 OpenSSL DLL 到 lib 目录" -ForegroundColor Green
+          Write-Host "  - lib\libcrypto-1_1.dll" -ForegroundColor Green
+          Write-Host "  - lib\libssl-1_1.dll" -ForegroundColor Green
           $Copied = $true
         } else {
           Write-Host "项目 dll 目录中未找到 OpenSSL DLL" -ForegroundColor Yellow
@@ -224,19 +242,19 @@ jobs:
           $libssl = Get-ChildItem -Path $QtBin -Filter "libssl*.dll" -ErrorAction SilentlyContinue | Select-Object -First 1
           
           if ($libcrypto -and $libssl) {
-            Copy-Item $libcrypto.FullName -Destination "release\" -Force
-            Copy-Item $libssl.FullName -Destination "release\" -Force
-            Write-Host "已从 Qt 目录复制 OpenSSL DLL" -ForegroundColor Green
-            Write-Host "  - $($libcrypto.Name)" -ForegroundColor Green
-            Write-Host "  - $($libssl.Name)" -ForegroundColor Green
+            Copy-Item $libcrypto.FullName -Destination "release\lib\" -Force
+            Copy-Item $libssl.FullName -Destination "release\lib\" -Force
+            Write-Host "已从 Qt 目录复制 OpenSSL DLL 到 lib 目录" -ForegroundColor Green
+            Write-Host "  - lib\$($libcrypto.Name)" -ForegroundColor Green
+            Write-Host "  - lib\$($libssl.Name)" -ForegroundColor Green
             $Copied = $true
           }
         }
         
         # 验证 DLL 文件是否已复制
         if ($Copied) {
-          $libcrypto = Get-ChildItem -Path "release" -Filter "libcrypto*.dll" -ErrorAction SilentlyContinue | Select-Object -First 1
-          $libssl = Get-ChildItem -Path "release" -Filter "libssl*.dll" -ErrorAction SilentlyContinue | Select-Object -First 1
+          $libcrypto = Get-ChildItem -Path "release\lib" -Filter "libcrypto*.dll" -ErrorAction SilentlyContinue | Select-Object -First 1
+          $libssl = Get-ChildItem -Path "release\lib" -Filter "libssl*.dll" -ErrorAction SilentlyContinue | Select-Object -First 1
           
           if ($libcrypto -and $libssl) {
             Write-Host "========================================" -ForegroundColor Green
@@ -475,6 +493,37 @@ jobs:
           Write-Host "  对于 Qt 5.15.2，这可能是正常的" -ForegroundColor Yellow
           Write-Host "  HTTPS 功能应该可以工作，如有问题请查看应用日志" -ForegroundColor Yellow
         }
+    
+    - name: Display final structure
+      working-directory: release
+      run: |
+        Write-Host "========================================" -ForegroundColor Cyan
+        Write-Host "最终文件结构" -ForegroundColor Cyan
+        Write-Host "========================================" -ForegroundColor Cyan
+        Write-Host "exe 文件:" -ForegroundColor Green
+        Get-ChildItem -Path . -Filter "*.exe" | ForEach-Object { Write-Host "  $($_.Name)" -ForegroundColor Green }
+        Write-Host "`nqt.conf:" -ForegroundColor Green
+        if (Test-Path "qt.conf") {
+          Write-Host "  ✓ qt.conf 已创建" -ForegroundColor Green
+        }
+        Write-Host "`nlib 目录中的 DLL:" -ForegroundColor Green
+        if (Test-Path "lib") {
+          $dllCount = (Get-ChildItem -Path "lib" -Filter "*.dll").Count
+          Write-Host "  共 $dllCount 个 DLL 文件" -ForegroundColor Green
+          Get-ChildItem -Path "lib" -Filter "*.dll" | Select-Object -First 10 | ForEach-Object { 
+            Write-Host "  lib\$($_.Name)" -ForegroundColor Gray 
+          }
+          if ($dllCount -gt 10) {
+            Write-Host "  ... 还有 $($dllCount - 10) 个 DLL" -ForegroundColor Gray
+          }
+        }
+        Write-Host "`nplugins 目录:" -ForegroundColor Green
+        if (Test-Path "plugins") {
+          Get-ChildItem -Path "plugins" -Directory | ForEach-Object { 
+            Write-Host "  plugins\$($_.Name)\" -ForegroundColor Gray 
+          }
+        }
+        Write-Host "========================================" -ForegroundColor Green
     
     - name: Create portable package
       run: |

@@ -41,3 +41,5 @@ cmake_install.cmake
 *.bak
 .DS_Store
 
+*.md
+
