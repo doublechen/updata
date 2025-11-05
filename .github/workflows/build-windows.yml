@@ -64,7 +64,7 @@ jobs:
         $Copied = $false
         
         # 方法1: 优先从项目 dll 目录复制（最可靠）
-        if (Test-Path "dll\libcrypto-1_1.dll" -and Test-Path "dll\libssl-1_1.dll") {
+        if ((Test-Path "dll\libcrypto-1_1.dll") -and (Test-Path "dll\libssl-1_1.dll")) {
           Copy-Item "dll\libcrypto-1_1.dll" -Destination "release\" -Force
           Copy-Item "dll\libssl-1_1.dll" -Destination "release\" -Force
           Write-Host "已从项目 dll 目录复制 OpenSSL DLL" -ForegroundColor Green
