@@ -72,30 +72,32 @@ void MainWindow::setupUI()
     logoLabel->setScaledContents(false);
     
     // 尝试加载 logo.png
-    // 首先尝试从应用程序目录
-    QString logoPath = QDir::currentPath() + "/logo.png";
-    if (!QFile::exists(logoPath)) {
-        // 如果不在当前目录，尝试从可执行文件所在目录
+    // 优先从嵌入的资源文件加载（打包在 exe 中）
+    QString logoPath = ":/logo.png";
+    QPixmap logo(logoPath);
+    
+    if (logo.isNull()) {
+        // 如果资源文件加载失败，尝试从外部文件加载
         logoPath = QApplication::applicationDirPath() + "/logo.png";
-    }
-    if (!QFile::exists(logoPath)) {
-        // 尝试从资源文件（如果配置了）
-        logoPath = ":/logo.png";
+        if (QFile::exists(logoPath)) {
+            logo = QPixmap(logoPath);
+        }
     }
     
-    if (QFile::exists(logoPath) || logoPath.startsWith(":")) {
-        QPixmap logo(logoPath);
-        if (!logo.isNull()) {
-            // 设置最大尺寸，保持宽高比
-            logo = logo.scaled(320, 80, Qt::KeepAspectRatio, Qt::SmoothTransformation);
-            logoLabel->setPixmap(logo);
-        } else {
-            // 如果加载失败，显示占位文本
-            logoLabel->setText("40+");
-            logoLabel->setStyleSheet("font-size: 32px; font-weight: bold; color: #007bff;");
+    if (logo.isNull()) {
+        // 尝试从当前目录加载
+        logoPath = QDir::currentPath() + "/logo.png";
+        if (QFile::exists(logoPath)) {
+            logo = QPixmap(logoPath);
         }
+    }
+    
+    if (!logo.isNull()) {
+        // 设置最大尺寸，保持宽高比
+        logo = logo.scaled(320, 80, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+        logoLabel->setPixmap(logo);
     } else {
-        // 如果找不到logo，显示占位文本
+        // 如果所有方式都失败，显示占位文本
         logoLabel->setText("40+");
         logoLabel->setStyleSheet("font-size: 32px; font-weight: bold; color: #007bff;");
     }

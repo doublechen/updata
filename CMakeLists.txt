@@ -23,6 +23,11 @@ set(HEADERS
     MainWindow.h
 )
 
+# Qt 资源文件
+set(RESOURCES
+    resources.qrc
+)
+
 # Windows 资源文件（图标）
 if(WIN32)
     set(RESOURCE_FILES
@@ -32,9 +37,9 @@ endif()
 
 # 创建可执行文件
 if(WIN32)
-    add_executable(${PROJECT_NAME} ${SOURCES} ${HEADERS} ${RESOURCE_FILES})
+    add_executable(${PROJECT_NAME} ${SOURCES} ${HEADERS} ${RESOURCES} ${RESOURCE_FILES})
 else()
-    add_executable(${PROJECT_NAME} ${SOURCES} ${HEADERS})
+    add_executable(${PROJECT_NAME} ${SOURCES} ${HEADERS} ${RESOURCES})
 endif()
 
 # 链接Qt库
