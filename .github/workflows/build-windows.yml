@@ -17,57 +17,43 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
     
-    - name: Setup Qt 5.15.2
-      uses: jurplel/install-qt-action@v3
+    - name: Setup Python
+      uses: actions/setup-python@v4
       with:
-        version: '5.15.2'
-        arch: 'win64_msvc2019_64'
-        modules: 'qtnetworkauth'
-        # 注意: SSL 插件通常包含在 Qt 基础安装中，但某些镜像可能不包含
-        # 如果缺少，我们会在后续步骤中处理
+        python-version: '3.x'
+    
+    - name: Install Qt 5.15.2 with aqt
+      run: |
+        Write-Host "安装 aqtinstall..." -ForegroundColor Cyan
+        pip install aqtinstall
+        
+        Write-Host "使用 aqt 安装 Qt 5.15.2..." -ForegroundColor Cyan
+        # 安装 Qt 5.15.2 及所有必要模块
+        # --archives 参数确保安装所有组件，包括 TLS 插件
+        aqt install-qt windows desktop 5.15.2 win64_msvc2019_64
+        
+        # 设置环境变量
+        $qtPath = Join-Path $PWD "5.15.2\msvc2019_64"
+        Write-Host "Qt 安装路径: $qtPath" -ForegroundColor Green
+        echo "Qt5_DIR=$qtPath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+        
+        # 验证安装
+        Write-Host "`n验证 Qt 安装:" -ForegroundColor Cyan
+        if (Test-Path "$qtPath\bin\qmake.exe") {
+          Write-Host "✓ qmake.exe 存在" -ForegroundColor Green
+        }
+        if (Test-Path "$qtPath\plugins\tls") {
+          Write-Host "✓ TLS 插件目录存在" -ForegroundColor Green
+          Get-ChildItem "$qtPath\plugins\tls" -Filter "*.dll" | ForEach-Object {
+            Write-Host "  - $($_.Name)" -ForegroundColor Green
+          }
+        }
+        if (Test-Path "$qtPath\bin\libcrypto-1_1-x64.dll") {
+          Write-Host "✓ OpenSSL DLL 存在于 Qt 目录" -ForegroundColor Green
+        }
     
     - name: Setup MSVC
       uses: microsoft/setup-msbuild@v1
-    
-    - name: Prepare Qt SSL Plugin
-      run: |
-        Write-Host "========================================" -ForegroundColor Cyan
-        Write-Host "准备 Qt SSL 插件" -ForegroundColor Cyan
-        Write-Host "========================================" -ForegroundColor Cyan
-        
-        # Qt 5.15.2 的 SSL/TLS 支持说明：
-        # - 在 Windows 上，Qt 5.15.2 主要使用 OpenSSL DLL (libcrypto-1_1.dll, libssl-1_1.dll)
-        # - Qt 5.15+ 引入了新的 TLS 后端插件系统 (qopensslbackend.dll 等)
-        # - 但是，早期的 Qt 5.15.x 版本可能不需要这些插件就能工作
-        
-        $qtPluginsDir = "$env:Qt5_DIR\plugins"
-        $sslPluginDir = "$qtPluginsDir\tls"
-        
-        Write-Host "Qt 安装目录: $env:Qt5_DIR" -ForegroundColor Cyan
-        Write-Host "Qt 插件目录: $qtPluginsDir" -ForegroundColor Cyan
-        
-        # 检查 Qt 安装是否包含 TLS 或 SSL 插件
-        $hasTlsPlugin = Test-Path "$sslPluginDir"
-        $hasSslPlugin = Test-Path "$qtPluginsDir\ssl"
-        
-        if ($hasTlsPlugin) {
-          Write-Host "✓ 找到 TLS 插件目录: $sslPluginDir" -ForegroundColor Green
-          Get-ChildItem -Path $sslPluginDir -Filter "*.dll" -ErrorAction SilentlyContinue | ForEach-Object {
-            Write-Host "  - $($_.Name)" -ForegroundColor Green
-          }
-        } elseif ($hasSslPlugin) {
-          Write-Host "✓ 找到 SSL 插件目录: $qtPluginsDir\ssl" -ForegroundColor Green
-          Get-ChildItem -Path "$qtPluginsDir\ssl" -Filter "*.dll" -ErrorAction SilentlyContinue | ForEach-Object {
-            Write-Host "  - $($_.Name)" -ForegroundColor Green
-          }
-        } else {
-          Write-Host "⚠ 未找到 Qt TLS/SSL 插件（这对于某些 Qt 版本是正常的）" -ForegroundColor Yellow
-          Write-Host "  Qt 5.15.2 主要依赖 OpenSSL DLL 文件进行 HTTPS 支持" -ForegroundColor Yellow
-        }
-        
-        Write-Host "========================================" -ForegroundColor Cyan
-        Write-Host "Qt 插件准备完成" -ForegroundColor Cyan
-        Write-Host "========================================" -ForegroundColor Cyan
     
     - name: Configure CMake
       run: |

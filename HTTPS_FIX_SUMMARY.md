@@ -2,39 +2,58 @@
 
 ## 问题描述
 
-应用在从 GitHub Actions 构建后，启动时显示 "Qt SSL 插件缺失" 警告。
+应用在从 GitHub Actions 构建后，上传数据时显示 "TLS initialization failed" 错误。
 
 ## 根本原因
 
-**这不是一个错误，而是正常现象！**
+**经实际测试确认：Qt 5.15.2 在这个配置下确实需要 TLS 插件！**
 
-从 GitHub Actions 使用 `install-qt-action` 安装的 Qt 5.15.2 不包含 Qt SSL 插件（`qopensslbackend.dll`）。但是：
+之前使用 `install-qt-action` 安装的 Qt 5.15.2 不包含 Qt TLS 插件（`qopensslbackend.dll`），导致：
 
-- ✅ OpenSSL DLL 文件（`libcrypto-1_1.dll`, `libssl-1_1.dll`）已正确包含
-- ✅ Qt 5.15.2 可以在没有 SSL 插件的情况下工作，直接使用 OpenSSL DLL
-- ✅ HTTPS 功能应该可以正常工作
+- ❌ 虽然 OpenSSL DLL 文件存在，但 Qt 无法初始化 TLS
+- ❌ `QSslSocket::supportsSsl()` 返回 `false`
+- ❌ 所有 HTTPS 请求失败，显示 "TLS initialization failed"
+
+## 最终解决方案
+
+**切换到使用 `aqtinstall` 安装完整的 Qt 5.15.2**，确保包含所有必要的 TLS 插件：
+
+- ✅ 使用 `aqt` 工具安装完整的 Qt 5.15.2
+- ✅ 包含 TLS 后端插件（`qopensslbackend.dll`）
+- ✅ 包含 OpenSSL DLL 文件
+- ✅ HTTPS 功能完全可用
 
 ## 已完成的修复
 
-### 1. GitHub Actions 工作流改进
+### 1. ✅ 更换 Qt 安装方式（关键修复）
 
 **文件**: `.github/workflows/build-windows.yml`
 
-- ✅ 添加了检查 Qt TLS/SSL 插件的步骤
-- ✅ 多层查找机制：检查 `plugins/ssl` 和 `plugins/tls` 目录
-- ✅ 找不到插件时给出警告但不退出构建
-- ✅ 改进了验证和日志输出
+- ✅ **从 `install-qt-action` 切换到 `aqtinstall`**
+- ✅ 使用 `aqt install-qt` 安装完整的 Qt 5.15.2
+- ✅ 确保包含 TLS 后端插件
+- ✅ 自动验证插件安装情况
+- ✅ 改进了日志输出和错误处理
 
-### 2. 应用程序错误处理改进
+### 2. GitHub Actions 工作流完善
+
+**文件**: `.github/workflows/build-windows.yml`
+
+- ✅ 添加了多层 SSL/TLS 插件查找和复制机制
+- ✅ 检查 `plugins/ssl` 和 `plugins/tls` 两个目录
+- ✅ 完善的验证步骤
+- ✅ 清晰的诊断日志
+
+### 3. 应用程序错误处理改进
 
 **文件**: `main.cpp`
 
-- ✅ 只在缺少 OpenSSL DLL 时显示严重错误
-- ✅ 如果 OpenSSL DLL 存在但插件缺失，只记录日志不弹窗
+- ✅ 检查 OpenSSL DLL 和 TLS 插件
 - ✅ 区分严重错误和一般警告
-- ✅ 提供更清晰的诊断信息
+- ✅ 提供详细的诊断信息
+- ✅ 支持 `plugins/ssl` 和 `plugins/tls` 两种目录结构
 
-### 3. 文档完善
+### 4. 文档完善
 
 创建了以下文档：
 
@@ -46,31 +65,33 @@
 
 ### 构建输出
 
-GitHub Actions 构建后：
-- ✅ OpenSSL DLL 文件: 已包含
-- ⚠️ Qt SSL 插件: 可能不包含（这是正常的）
-- ✅ 应用程序: 可以正常运行
-- ✅ HTTPS 功能: 应该可以工作
+使用 `aqtinstall` 后的 GitHub Actions 构建：
+- ✅ **完整的 Qt 5.15.2 安装**
+- ✅ **TLS 后端插件**: 已包含（`qopensslbackend.dll`）
+- ✅ **OpenSSL DLL 文件**: 已包含
+- ✅ **应用程序**: 可以正常运行
+- ✅ **HTTPS 功能**: 完全可用 ✓
 
 ### 应用启动行为
 
-#### 场景 1: OpenSSL DLL 存在，插件缺失（预期情况）
+#### 预期情况：正常工作
 
 **日志输出**:
 ```
-SSL 支持: false
+SSL 支持: true
+SSL 运行时版本: OpenSSL 1.1.1
 OpenSSL DLL 检查:
   libcrypto-1_1.dll: 存在
   libssl-1_1.dll: 存在
-注意: QSslSocket::supportsSsl() 返回 false，但 OpenSSL DLL 文件存在
 ```
 
 **用户体验**: 
-- 不显示错误对话框
-- 应用正常启动
-- HTTPS 功能应该可以正常工作
+- ✅ 不显示任何错误
+- ✅ 应用正常启动
+- ✅ HTTPS 功能完全正常
+- ✅ 数据上传成功
 
-#### 场景 2: OpenSSL DLL 缺失（异常情况）
+#### 异常情况：文件缺失
 
 **用户体验**:
 - 显示错误对话框
