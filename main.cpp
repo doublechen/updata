@@ -5,15 +5,39 @@
 #include <QTextCodec>
 #endif
 #include <QSslSocket>
+#include <QSslConfiguration>
 #include <QDebug>
 #include <QMessageBox>
 #include <QDir>
 #include <QFile>
 #include <QFileInfoList>
+#include <QLibrary>
 
 int main(int argc, char *argv[])
 {
     QApplication app(argc, argv);
+    
+    // 在 Qt 初始化之前，预加载 OpenSSL DLL
+    // 这可以解决某些情况下 Qt 无法自动找到 OpenSSL 的问题
+    QString appDir = QApplication::applicationDirPath();
+    QString cryptoDll = appDir + "/libcrypto-1_1.dll";
+    QString sslDll = appDir + "/libssl-1_1.dll";
+    
+    // 尝试预加载 OpenSSL DLL
+    QLibrary cryptoLib(cryptoDll);
+    QLibrary sslLib(sslDll);
+    
+    if (cryptoLib.load()) {
+        qDebug() << "成功预加载:" << cryptoDll;
+    } else {
+        qDebug() << "无法预加载:" << cryptoDll << "错误:" << cryptoLib.errorString();
+    }
+    
+    if (sslLib.load()) {
+        qDebug() << "成功预加载:" << sslDll;
+    } else {
+        qDebug() << "无法预加载:" << sslDll << "错误:" << sslLib.errorString();
+    }
     
     // 设置应用程序信息
     app.setApplicationName("数据上传工具");
@@ -27,22 +51,21 @@ int main(int argc, char *argv[])
     // Qt6: 默认使用UTF-8,无需设置
 #endif
     
+    // 检查 OpenSSL DLL 文件是否存在
+    bool cryptoExists = QFile::exists(cryptoDll);
+    bool sslExists = QFile::exists(sslDll);
+    
     // 检查 SSL/TLS 支持
     bool sslSupported = QSslSocket::supportsSsl();
     QString sslVersion = QSslSocket::sslLibraryVersionString();
     QString sslBuildVersion = QSslSocket::sslLibraryBuildVersionString();
     
+    qDebug() << "========================================";
+    qDebug() << "SSL/TLS 配置检查";
+    qDebug() << "========================================";
     qDebug() << "SSL 支持:" << sslSupported;
     qDebug() << "SSL 运行时版本:" << sslVersion;
     qDebug() << "SSL 编译版本:" << sslBuildVersion;
-    
-    // 检查 OpenSSL DLL 文件是否存在
-    QString appDir = QApplication::applicationDirPath();
-    QString cryptoDll = appDir + "/libcrypto-1_1.dll";
-    QString sslDll = appDir + "/libssl-1_1.dll";
-    
-    bool cryptoExists = QFile::exists(cryptoDll);
-    bool sslExists = QFile::exists(sslDll);
     
     qDebug() << "OpenSSL DLL 检查:";
     qDebug() << "  libcrypto-1_1.dll:" << (cryptoExists ? "存在" : "不存在") << "(" << cryptoDll << ")";

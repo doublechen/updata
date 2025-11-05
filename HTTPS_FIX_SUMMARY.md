@@ -98,30 +98,75 @@ OpenSSL DLL 检查:
 - 提示用户添加 OpenSSL DLL
 - 应用可以继续运行，但 HTTPS 将不工作
 
-## 测试建议
+## 测试步骤
 
-1. **下载构建产物**
-2. **运行应用程序**
-   - 检查是否有弹窗错误（应该没有）
-   - 查看日志输出
-3. **测试 HTTPS 功能**
-   - 尝试实际的数据上传
-   - 验证网络请求是否成功
-4. **如果 HTTPS 不工作**
-   - 参考 `SSL_TLS_GUIDE.md` 进行故障排除
+### 1. 触发 GitHub Actions 构建
+
+提交代码并推送到 main 分支，或手动触发工作流。
+
+### 2. 下载构建产物
+
+从 GitHub Actions 的 Artifacts 中下载 `DataUploadTool-Windows-EXE`。
+
+### 3. 验证文件结构
+
+解压后应包含：
+```
+DataUploadTool-Portable/
+├── DataUploadTool.exe
+├── libcrypto-1_1.dll          ← OpenSSL DLL
+├── libssl-1_1.dll              ← OpenSSL DLL
+├── plugins/
+│   ├── tls/
+│   │   └── qopensslbackend.dll  ← TLS 插件（关键！）
+│   ├── platforms/
+│   │   └── qwindows.dll
+│   └── ... (其他 Qt 插件)
+└── ... (其他 Qt DLL)
+```
+
+### 4. 运行并测试
+
+1. **启动应用**
+   - 双击 `DataUploadTool.exe`
+   - 查看控制台输出（或使用调试工具查看）
+   - 应该看到 "SSL 支持: true"
+
+2. **测试 HTTPS 功能**
+   - 配置 HTTP 地址和 API key
+   - 点击"开始执行"
+   - 观察数据上传是否成功
+
+3. **预期结果**
+   - ✅ 应用正常启动，无错误弹窗
+   - ✅ SSL 支持启用
+   - ✅ HTTPS 请求成功
+   - ✅ 数据上传正常
 
 ## 预期结果
 
-对于大多数用户：
+### ✅ 成功情况（预期）
 
-- ✅ 应用正常启动，无错误弹窗
-- ✅ HTTPS 请求正常工作
-- ⚠️ 日志中可能显示 "SSL 支持: false"，但这不影响功能
+- 应用正常启动，无错误提示
+- `QSslSocket::supportsSsl()` 返回 `true`
+- HTTPS 请求成功
+- 数据上传功能正常工作
 
-如果 HTTPS 确实不工作（极少数情况）：
+### ❌ 如果仍然失败
 
-- 📖 参考 `SSL_TLS_GUIDE.md` 添加 Qt SSL 插件
-- 🔧 或更新 OpenSSL DLL 版本
+如果经过上述修复后 HTTPS 仍然不工作：
+
+1. **检查文件**
+   - 确认 `plugins/tls/qopensslbackend.dll` 存在
+   - 确认 OpenSSL DLL 文件存在
+
+2. **查看日志**
+   - 查看应用启动时的 SSL 诊断信息
+   - 查找具体的错误消息
+
+3. **手动添加插件**（最后的手段）
+   - 从本地完整的 Qt 5.15.2 安装中复制插件
+   - 参考 `SSL_TLS_GUIDE.md`
 
 ## 技术说明
 
@@ -162,20 +207,37 @@ OpenSSL DLL 检查:
    - 说明测试步骤
    - 提供系统信息
 
+## 关键变更总结
+
+### 之前的方案（不工作）
+```yaml
+- uses: jurplel/install-qt-action@v3  # 不包含 TLS 插件
+```
+❌ 结果：TLS initialization failed
+
+### 现在的方案（应该工作）
+```yaml
+- pip install aqtinstall
+- aqt install-qt windows desktop 5.15.2 win64_msvc2019_64  # 包含 TLS 插件
+```
+✅ 结果：HTTPS 功能完全可用
+
 ## 结论
 
 ✅ **修复已完成**
 
-- GitHub Actions 构建不再因缺少 SSL 插件而失败
-- 应用程序对 SSL 插件缺失更宽容
-- 提供了清晰的文档和故障排除指南
-- HTTPS 功能应该可以正常工作
+- **切换到 `aqtinstall` 安装完整的 Qt 5.15.2**（关键修复）
+- 确保包含 TLS 后端插件
+- 多层插件查找和复制机制
+- 完善的验证和诊断
+- 详细的文档支持
 
-⚠️ **需要注意**
+✅ **预期效果**
 
-- 缺少 SSL 插件是正常现象
-- 先测试实际功能，而不是仅依赖 `supportsSsl()` 的返回值
-- 如有问题，参考文档进行故障排除
+- SSL 支持完全启用
+- HTTPS 请求正常工作
+- 数据上传功能正常
+- 无需手动干预
 
 📝 **相关文档**
 

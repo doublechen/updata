@@ -22,18 +22,19 @@ jobs:
       with:
         python-version: '3.x'
     
-    - name: Install Qt 5.15.2 with aqt
+    - name: Install Qt 5.12.12 with aqt
       run: |
-        Write-Host "安装 aqtinstall..." -ForegroundColor Cyan
+        Write-Host "========================================" -ForegroundColor Cyan
+        Write-Host "安装 Qt 5.12.12" -ForegroundColor Cyan
+        Write-Host "========================================" -ForegroundColor Cyan
         pip install aqtinstall
         
-        Write-Host "使用 aqt 安装 Qt 5.15.2..." -ForegroundColor Cyan
-        # 安装 Qt 5.15.2 及所有必要模块
-        # --archives 参数确保安装所有组件，包括 TLS 插件
-        aqt install-qt windows desktop 5.15.2 win64_msvc2019_64
+        # Qt 5.12.12 不需要 TLS 插件，可以直接使用 OpenSSL DLL
+        Write-Host "使用 aqt 安装 Qt 5.12.12..." -ForegroundColor Cyan
+        aqt install-qt windows desktop 5.12.12 win64_msvc2017_64
         
         # 设置环境变量
-        $qtPath = Join-Path $PWD "5.15.2\msvc2019_64"
+        $qtPath = Join-Path $PWD "5.12.12\msvc2017_64"
         Write-Host "Qt 安装路径: $qtPath" -ForegroundColor Green
         echo "Qt5_DIR=$qtPath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
         
@@ -42,14 +43,25 @@ jobs:
         if (Test-Path "$qtPath\bin\qmake.exe") {
           Write-Host "✓ qmake.exe 存在" -ForegroundColor Green
         }
-        if (Test-Path "$qtPath\plugins\tls") {
-          Write-Host "✓ TLS 插件目录存在" -ForegroundColor Green
-          Get-ChildItem "$qtPath\plugins\tls" -Filter "*.dll" | ForEach-Object {
-            Write-Host "  - $($_.Name)" -ForegroundColor Green
-          }
-        }
-        if (Test-Path "$qtPath\bin\libcrypto-1_1-x64.dll") {
-          Write-Host "✓ OpenSSL DLL 存在于 Qt 目录" -ForegroundColor Green
+        Write-Host "========================================" -ForegroundColor Green
+        Write-Host "✓ Qt 5.12.12 安装完成" -ForegroundColor Green
+        Write-Host "  此版本不需要 TLS 插件即可使用 OpenSSL" -ForegroundColor Green
+        Write-Host "========================================" -ForegroundColor Green
+    
+    - name: Configure OpenSSL for Qt 5.12
+      run: |
+        Write-Host "配置 OpenSSL DLL..." -ForegroundColor Cyan
+        
+        # Qt 5.12 可以直接使用 OpenSSL DLL，无需插件
+        # 将 OpenSSL DLL 复制到 Qt bin 目录
+        $qtBin = "$env:Qt5_DIR\bin"
+        
+        if (Test-Path "dll\libcrypto-1_1-x64.dll") {
+          Copy-Item "dll\libcrypto-1_1-x64.dll" -Destination "$qtBin\libcrypto-1_1-x64.dll" -Force
+          Copy-Item "dll\libssl-1_1-x64.dll" -Destination "$qtBin\libssl-1_1-x64.dll" -Force
+          Copy-Item "dll\libcrypto-1_1-x64.dll" -Destination "$qtBin\libcrypto-1_1.dll" -Force
+          Copy-Item "dll\libssl-1_1-x64.dll" -Destination "$qtBin\libssl-1_1.dll" -Force
+          Write-Host "✓ OpenSSL DLL 配置完成" -ForegroundColor Green
         }
     
     - name: Setup MSVC
@@ -57,11 +69,14 @@ jobs:
     
     - name: Configure CMake
       run: |
+        Write-Host "配置 CMake..." -ForegroundColor Cyan
         cmake -B build -S . `
           -DCMAKE_BUILD_TYPE=Release `
           -DCMAKE_PREFIX_PATH="$env:Qt5_DIR" `
           -G "Visual Studio 17 2022" `
-          -A x64
+          -A x64 `
+          -T v141
+        Write-Host "✓ CMake 配置完成（使用 VS 2017 工具集）" -ForegroundColor Green
     
     - name: Build
       run: cmake --build build --config Release --parallel
