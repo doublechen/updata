@@ -88,9 +88,10 @@ void MainWindow::initializeLogFile()
     
     // 创建日志文件
     logFile = new QFile(logFileName);
-    if (logFile->open(QIODevice::WriteOnly | QIODevice::Text | QIODevice::Append)) {
+    if (logFile->open(QIODevice::WriteOnly | QIODevice::Text)) {
         logStream = new QTextStream(logFile);
         logStream->setCodec("UTF-8");
+        logStream->setGenerateByteOrderMark(true);  // 添加 UTF-8 BOM，让 Windows 记事本正确识别
         
         // 写入文件头
         *logStream << "========================================\n";
