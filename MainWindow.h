@@ -61,6 +61,8 @@ private:
     QWidget *inputSection;
     QGridLayout *inputLayout;
     
+    QLabel *logoLabel;
+    
     QLabel *labelHttpAddress;
     QLineEdit *txtHttpAddress;
     

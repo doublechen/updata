@@ -41,19 +41,91 @@ jobs:
       run: |
         mkdir release
     
-    - name: Copy executable
+    - name: Copy executable and resources
       run: |
         copy build\Release\DataUploadTool.exe release\
+        if (Test-Path "logo.png") {
+          copy logo.png release\
+        }
     
     - name: Package with windeployqt
       working-directory: release
       run: |
         & "$env:Qt5_DIR\bin\windeployqt.exe" DataUploadTool.exe
     
+    - name: Copy OpenSSL DLL files
+      run: |
+        # 检查并复制 OpenSSL DLL 文件（Qt 5.15.2 需要 OpenSSL 1.1.1）
+        $QtBin = "$env:Qt5_DIR\bin"
+        $OpenSSLDLLs = @(
+          "libcrypto-1_1.dll",
+          "libssl-1_1.dll",
+          "libcrypto-1_1-x64.dll",
+          "libssl-1_1-x64.dll"
+        )
+        
+        $Copied = $false
+        foreach ($dll in $OpenSSLDLLs) {
+          $srcPath = Join-Path $QtBin $dll
+          if (Test-Path $srcPath) {
+            Copy-Item $srcPath -Destination "release\" -Force
+            Write-Host "已复制 OpenSSL DLL: $dll" -ForegroundColor Green
+            $Copied = $true
+          }
+        }
+        
+        if (-not $Copied) {
+          Write-Host "警告: 未在 Qt 目录找到 OpenSSL DLL，尝试下载..." -ForegroundColor Yellow
+          # 下载 OpenSSL 1.1.1 DLL（Qt 5.15.2 兼容）
+          $OpenSSLUrl = "https://indy.fulgan.com/SSL/openssl-1.1.1u-x64_86-win64.zip"
+          $OpenSSLZip = "openssl.zip"
+          
+          try {
+            Write-Host "正在下载 OpenSSL DLL..." -ForegroundColor Green
+            Invoke-WebRequest -Uri $OpenSSLUrl -OutFile $OpenSSLZip -UseBasicParsing
+            
+            Write-Host "正在解压 OpenSSL DLL..." -ForegroundColor Green
+            Expand-Archive -Path $OpenSSLZip -DestinationPath "openssl_temp" -Force
+            
+            # 查找并复制 DLL 文件
+            $libcrypto = Get-ChildItem -Path "openssl_temp" -Filter "libcrypto*.dll" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+            $libssl = Get-ChildItem -Path "openssl_temp" -Filter "libssl*.dll" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+            
+            if ($libcrypto -and $libssl) {
+              Copy-Item $libcrypto.FullName -Destination "release\" -Force
+              Copy-Item $libssl.FullName -Destination "release\" -Force
+              Write-Host "已下载并复制 OpenSSL DLL" -ForegroundColor Green
+              $Copied = $true
+            }
+            
+            # 清理临时文件
+            Remove-Item $OpenSSLZip -Force -ErrorAction SilentlyContinue
+            Remove-Item "openssl_temp" -Recurse -Force -ErrorAction SilentlyContinue
+          } catch {
+            Write-Host "下载 OpenSSL DLL 失败: $($_.Exception.Message)" -ForegroundColor Yellow
+          }
+        }
+        
+        if (-not $Copied) {
+          Write-Host "错误: 未找到或下载 OpenSSL DLL 文件" -ForegroundColor Red
+          Write-Host "SSL/TLS 功能可能无法正常工作" -ForegroundColor Yellow
+        } else {
+          Write-Host "OpenSSL DLL 文件已准备就绪" -ForegroundColor Green
+        }
+    
+    - name: Create portable package
+      run: |
+        # 创建便携版压缩包（包含所有依赖）
+        Compress-Archive -Path release\* -DestinationPath DataUploadTool-Portable.zip -Force
+        Write-Host "已创建便携版压缩包: DataUploadTool-Portable.zip" -ForegroundColor Green
+        Write-Host "要创建单个 exe 文件，请使用 Enigma Virtual Box 或参考 PACKAGING.md" -ForegroundColor Yellow
+    
     - name: Upload artifacts
       uses: actions/upload-artifact@v4
       with:
         name: DataUploadTool-Windows-EXE
-        path: release/*
+        path: |
+          release/*
+          DataUploadTool-Portable.*
         retention-days: 30
 

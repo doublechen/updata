@@ -15,6 +15,9 @@
 #include <QFontDatabase>
 #include <QRandomGenerator>
 #include <QDateTime>
+#include <QPixmap>
+#include <QDir>
+#include <QFile>
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
@@ -63,11 +66,51 @@ void MainWindow::setupUI()
     leftLayout->setContentsMargins(20, 20, 20, 20);
     leftLayout->setSpacing(20);
     
+    // Logo 区域
+    logoLabel = new QLabel();
+    logoLabel->setAlignment(Qt::AlignCenter);
+    logoLabel->setScaledContents(false);
+    
+    // 尝试加载 logo.png
+    // 首先尝试从应用程序目录
+    QString logoPath = QDir::currentPath() + "/logo.png";
+    if (!QFile::exists(logoPath)) {
+        // 如果不在当前目录，尝试从可执行文件所在目录
+        logoPath = QApplication::applicationDirPath() + "/logo.png";
+    }
+    if (!QFile::exists(logoPath)) {
+        // 尝试从资源文件（如果配置了）
+        logoPath = ":/logo.png";
+    }
+    
+    if (QFile::exists(logoPath) || logoPath.startsWith(":")) {
+        QPixmap logo(logoPath);
+        if (!logo.isNull()) {
+            // 设置最大尺寸，保持宽高比
+            logo = logo.scaled(320, 80, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+            logoLabel->setPixmap(logo);
+        } else {
+            // 如果加载失败，显示占位文本
+            logoLabel->setText("40+");
+            logoLabel->setStyleSheet("font-size: 32px; font-weight: bold; color: #007bff;");
+        }
+    } else {
+        // 如果找不到logo，显示占位文本
+        logoLabel->setText("40+");
+        logoLabel->setStyleSheet("font-size: 32px; font-weight: bold; color: #007bff;");
+    }
+    logoLabel->setObjectName("logoLabel");
+    logoLabel->setMinimumHeight(80);
+    
     // 输入区域
     inputSection = new QWidget();
     inputLayout = new QGridLayout(inputSection);
     inputLayout->setSpacing(18);
     inputLayout->setContentsMargins(0, 0, 0, 0);
+    
+    // 左侧布局 - 先添加logo
+    leftLayout->addWidget(logoLabel);
+    leftLayout->addSpacing(10);
     
     // HTTP地址输入
     labelHttpAddress = new QLabel("HTTP地址");
@@ -130,7 +173,7 @@ void MainWindow::setupUI()
 
 void MainWindow::setupStyles()
 {
-    // 设置样式表
+    // 设置样式表 - Bootstrap 风格
     QString styleSheet = R"(
         QMainWindow {
             background-color: #f8f9fa;
@@ -139,38 +182,56 @@ void MainWindow::setupStyles()
         QWidget#leftPanel {
             background-color: white;
             border-radius: 8px;
+            padding: 5px;
+        }
+        
+        QLabel#logoLabel {
+            background-color: transparent;
+            border: none;
+            padding: 10px;
         }
         
         QLabel {
-            font-weight: bold;
+            font-weight: 600;
             color: #495057;
-            font-size: 16px;
+            font-size: 14px;
+            margin-bottom: 4px;
         }
         
         QLineEdit {
-            padding: 12px 14px;
+            padding: 10px 12px;
             font-size: 16px;
             color: #495057;
-            background-color: #fff;
-            border: 2px solid #ced4da;
-            border-radius: 6px;
+            background-color: #ffffff;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            selection-background-color: #007bff;
+            selection-color: white;
         }
         
         QLineEdit:focus {
             border-color: #80bdff;
             outline: none;
+            border-width: 2px;
+        }
+        
+        QLineEdit:hover:!focus {
+            border-color: #adb5bd;
         }
         
         QLineEdit:disabled {
             background-color: #e9ecef;
+            color: #6c757d;
+            border-color: #ced4da;
         }
         
         QPushButton {
-            padding: 14px 22px;
-            font-size: 18px;
-            font-weight: bold;
-            border: 2px solid transparent;
-            border-radius: 6px;
+            padding: 12px 20px;
+            font-size: 16px;
+            font-weight: 600;
+            border: 1px solid transparent;
+            border-radius: 4px;
+            cursor: pointer;
         }
         
         QPushButton#btnStart {
@@ -187,12 +248,15 @@ void MainWindow::setupStyles()
         QPushButton#btnStart:pressed {
             background-color: #1e7e34;
             border-color: #1c7430;
+            padding-top: 13px;
+            padding-bottom: 11px;
         }
         
         QPushButton#btnStart:disabled {
             opacity: 0.65;
             background-color: #6c757d;
             border-color: #6c757d;
+            cursor: not-allowed;
         }
         
         QPushButton#btnStop {
@@ -209,12 +273,15 @@ void MainWindow::setupStyles()
         QPushButton#btnStop:pressed {
             background-color: #bd2130;
             border-color: #b21f2d;
+            padding-top: 13px;
+            padding-bottom: 11px;
         }
         
         QPushButton#btnStop:disabled {
             opacity: 0.65;
             background-color: #6c757d;
             border-color: #6c757d;
+            cursor: not-allowed;
         }
         
         QTextEdit#logArea {
@@ -223,8 +290,9 @@ void MainWindow::setupStyles()
             border-radius: 8px;
             padding: 15px;
             font-family: "Consolas", "Courier New", monospace;
-            font-size: 15px;
-            line-height: 1.8;
+            font-size: 14px;
+            line-height: 1.6;
+            border: 1px solid #343a40;
         }
     )";
     
