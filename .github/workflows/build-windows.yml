@@ -21,14 +21,12 @@ jobs:
       uses: jurplel/install-qt-action@v3
       with:
         version: '5.15.2'
-        modules: 'qtbase qtnetwork qtdeclarative'
         arch: 'win64_msvc2019_64'
     
     - name: Setup MSVC
       uses: microsoft/setup-msbuild@v1
     
     - name: Configure CMake
-      working-directory: qt-app
       run: |
         cmake -B build -S . `
           -DCMAKE_BUILD_TYPE=Release `
@@ -37,21 +35,18 @@ jobs:
           -A x64
     
     - name: Build
-      working-directory: qt-app
       run: cmake --build build --config Release --parallel
     
     - name: Create release directory
-      working-directory: qt-app
       run: |
         mkdir release
     
     - name: Copy executable
-      working-directory: qt-app
       run: |
         copy build\Release\DataUploadTool.exe release\
     
     - name: Package with windeployqt
-      working-directory: qt-app/release
+      working-directory: release
       run: |
         $env:Qt5_DIR\bin\windeployqt.exe DataUploadTool.exe
     
@@ -59,6 +54,6 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: DataUploadTool-Windows-EXE
-        path: qt-app/release/*
+        path: release/*
         retention-days: 30
 
