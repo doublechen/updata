@@ -35,8 +35,10 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
 
 # Windows特定设置
 if(WIN32)
+    # 暂时启用控制台以便查看调试信息
+    # 如果需要发布版本，可以改为 WIN32_EXECUTABLE TRUE
     set_target_properties(${PROJECT_NAME} PROPERTIES
-        WIN32_EXECUTABLE TRUE
+        WIN32_EXECUTABLE FALSE
     )
 endif()
 
