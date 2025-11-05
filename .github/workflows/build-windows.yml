@@ -29,6 +29,46 @@ jobs:
     - name: Setup MSVC
       uses: microsoft/setup-msbuild@v1
     
+    - name: Prepare Qt SSL Plugin
+      run: |
+        Write-Host "========================================" -ForegroundColor Cyan
+        Write-Host "准备 Qt SSL 插件" -ForegroundColor Cyan
+        Write-Host "========================================" -ForegroundColor Cyan
+        
+        # Qt 5.15.2 的 SSL/TLS 支持说明：
+        # - 在 Windows 上，Qt 5.15.2 主要使用 OpenSSL DLL (libcrypto-1_1.dll, libssl-1_1.dll)
+        # - Qt 5.15+ 引入了新的 TLS 后端插件系统 (qopensslbackend.dll 等)
+        # - 但是，早期的 Qt 5.15.x 版本可能不需要这些插件就能工作
+        
+        $qtPluginsDir = "$env:Qt5_DIR\plugins"
+        $sslPluginDir = "$qtPluginsDir\tls"
+        
+        Write-Host "Qt 安装目录: $env:Qt5_DIR" -ForegroundColor Cyan
+        Write-Host "Qt 插件目录: $qtPluginsDir" -ForegroundColor Cyan
+        
+        # 检查 Qt 安装是否包含 TLS 或 SSL 插件
+        $hasTlsPlugin = Test-Path "$sslPluginDir"
+        $hasSslPlugin = Test-Path "$qtPluginsDir\ssl"
+        
+        if ($hasTlsPlugin) {
+          Write-Host "✓ 找到 TLS 插件目录: $sslPluginDir" -ForegroundColor Green
+          Get-ChildItem -Path $sslPluginDir -Filter "*.dll" -ErrorAction SilentlyContinue | ForEach-Object {
+            Write-Host "  - $($_.Name)" -ForegroundColor Green
+          }
+        } elseif ($hasSslPlugin) {
+          Write-Host "✓ 找到 SSL 插件目录: $qtPluginsDir\ssl" -ForegroundColor Green
+          Get-ChildItem -Path "$qtPluginsDir\ssl" -Filter "*.dll" -ErrorAction SilentlyContinue | ForEach-Object {
+            Write-Host "  - $($_.Name)" -ForegroundColor Green
+          }
+        } else {
+          Write-Host "⚠ 未找到 Qt TLS/SSL 插件（这对于某些 Qt 版本是正常的）" -ForegroundColor Yellow
+          Write-Host "  Qt 5.15.2 主要依赖 OpenSSL DLL 文件进行 HTTPS 支持" -ForegroundColor Yellow
+        }
+        
+        Write-Host "========================================" -ForegroundColor Cyan
+        Write-Host "Qt 插件准备完成" -ForegroundColor Cyan
+        Write-Host "========================================" -ForegroundColor Cyan
+    
     - name: Configure CMake
       run: |
         cmake -B build -S . `
@@ -178,14 +218,15 @@ jobs:
           exit 1
         }
         
-        # 检查并复制 Qt SSL 插件（关键！）
+        # 检查并复制 Qt SSL/TLS 插件（关键！）
         Write-Host "========================================" -ForegroundColor Cyan
-        Write-Host "检查并复制 Qt SSL 插件" -ForegroundColor Cyan
+        Write-Host "检查并复制 Qt SSL/TLS 插件" -ForegroundColor Cyan
         Write-Host "========================================" -ForegroundColor Cyan
         $QtPlugins = "$env:Qt5_DIR\plugins"
         $sslPluginCopied = $false
         
-        # 方法1: 检查 windeployqt 是否已经部署了 SSL 插件
+        # 方法1: 检查 windeployqt 是否已经部署了 SSL 或 TLS 插件
+        # 检查 plugins/ssl 目录
         if (Test-Path "release\plugins\ssl") {
           $existingPlugins = Get-ChildItem -Path "release\plugins\ssl" -Filter "*.dll" -ErrorAction SilentlyContinue
           if ($existingPlugins -and $existingPlugins.Count -gt 0) {
@@ -197,12 +238,26 @@ jobs:
           }
         }
         
+        # 检查 plugins/tls 目录（Qt 5.15+ 可能使用这个目录）
+        if ((Test-Path "release\plugins\tls") -and -not $sslPluginCopied) {
+          $existingPlugins = Get-ChildItem -Path "release\plugins\tls" -Filter "*.dll" -ErrorAction SilentlyContinue
+          if ($existingPlugins -and $existingPlugins.Count -gt 0) {
+            Write-Host "✓ windeployqt 已部署 TLS 插件 ($($existingPlugins.Count) 个)" -ForegroundColor Green
+            foreach ($plugin in $existingPlugins) {
+              Write-Host "  - $($plugin.Name)" -ForegroundColor Green
+            }
+            $sslPluginCopied = $true
+          }
+        }
+        
         # 方法2: 如果 windeployqt 没有部署，手动从 Qt 目录复制
         if (-not $sslPluginCopied) {
           Write-Host "windeployqt 未部署 SSL 插件，尝试手动复制..." -ForegroundColor Yellow
+          Write-Host "Qt 安装目录: $env:Qt5_DIR" -ForegroundColor Cyan
+          Write-Host "Qt 插件目录: $QtPlugins" -ForegroundColor Cyan
           
+          # 尝试从 plugins/ssl 目录复制
           if (Test-Path "$QtPlugins\ssl") {
-            # 确保目标目录存在
             if (-not (Test-Path "release\plugins\ssl")) {
               New-Item -ItemType Directory -Path "release\plugins\ssl" -Force | Out-Null
               Write-Host "已创建 plugins\ssl 目录" -ForegroundColor Green
@@ -219,15 +274,32 @@ jobs:
               }
               Write-Host "共复制 $copiedCount 个 SSL 插件文件" -ForegroundColor Green
               $sslPluginCopied = $true
-            } else {
-              Write-Host "警告: Qt SSL 插件目录存在但未找到 DLL 文件: $QtPlugins\ssl" -ForegroundColor Yellow
-              Write-Host "列出目录内容:" -ForegroundColor Yellow
-              Get-ChildItem -Path "$QtPlugins\ssl" -ErrorAction SilentlyContinue | ForEach-Object {
-                Write-Host "  - $($_.Name)" -ForegroundColor Yellow
-              }
             }
-          } else {
-            Write-Host "警告: 未找到 Qt SSL 插件目录: $QtPlugins\ssl" -ForegroundColor Yellow
+          }
+          
+          # 尝试从 plugins/tls 目录复制（Qt 5.15+ 可能使用这个）
+          if ((Test-Path "$QtPlugins\tls") -and -not $sslPluginCopied) {
+            if (-not (Test-Path "release\plugins\tls")) {
+              New-Item -ItemType Directory -Path "release\plugins\tls" -Force | Out-Null
+              Write-Host "已创建 plugins\tls 目录" -ForegroundColor Green
+            }
+            
+            $tlsPlugins = Get-ChildItem -Path "$QtPlugins\tls" -Filter "*.dll" -ErrorAction SilentlyContinue
+            if ($tlsPlugins) {
+              $copiedCount = 0
+              foreach ($plugin in $tlsPlugins) {
+                $destPath = "release\plugins\tls\$($plugin.Name)"
+                Copy-Item $plugin.FullName -Destination $destPath -Force
+                Write-Host "✓ 已复制 TLS 插件: $($plugin.Name)" -ForegroundColor Green
+                $copiedCount++
+              }
+              Write-Host "共复制 $copiedCount 个 TLS 插件文件" -ForegroundColor Green
+              $sslPluginCopied = $true
+            }
+          }
+          
+          if (-not $sslPluginCopied) {
+            Write-Host "警告: 未找到 Qt SSL/TLS 插件目录" -ForegroundColor Yellow
             Write-Host "检查 Qt 插件目录是否存在:" -ForegroundColor Yellow
             if (Test-Path $QtPlugins) {
               Write-Host "Qt 插件目录存在: $QtPlugins" -ForegroundColor Yellow
@@ -273,12 +345,15 @@ jobs:
           Write-Host "========================================" -ForegroundColor Yellow
           Write-Host "警告: 无法找到 Qt SSL 插件" -ForegroundColor Yellow
           Write-Host "========================================" -ForegroundColor Yellow
-          Write-Host "这可能导致 SSL/TLS 功能无法正常工作" -ForegroundColor Yellow
-          Write-Host "但是，如果 OpenSSL DLL 文件存在，某些功能可能仍然可用" -ForegroundColor Yellow
-          Write-Host "建议:" -ForegroundColor Yellow
-          Write-Host "1. 确保 Qt 安装包含 SSL 插件" -ForegroundColor Yellow
-          Write-Host "2. 或手动下载 Qt SSL 插件并放置到 release\plugins\ssl 目录" -ForegroundColor Yellow
-          Write-Host "3. 继续构建，但需要在运行时验证 SSL 功能" -ForegroundColor Yellow
+          Write-Host "Qt 5.15.2 的 SSL 插件在某些分发版中不包含" -ForegroundColor Yellow
+          Write-Host "这是正常的，对于 HTTPS 支持：" -ForegroundColor Yellow
+          Write-Host "  - Qt 5.15.2 主要依赖 OpenSSL DLL 文件（已复制）" -ForegroundColor Yellow
+          Write-Host "  - SSL 插件 (qopensslbackend.dll) 是可选的" -ForegroundColor Yellow
+          Write-Host "  - 只要 OpenSSL DLL 存在，HTTPS 功能应该可以工作" -ForegroundColor Yellow
+          Write-Host "" -ForegroundColor Yellow
+          Write-Host "如果 HTTPS 仍然不工作，可以尝试：" -ForegroundColor Yellow
+          Write-Host "1. 从完整的 Qt 5.15.2 安装中复制 plugins\tls 目录" -ForegroundColor Yellow
+          Write-Host "2. 使用 Qt 在线安装器安装包含 SSL 支持的版本" -ForegroundColor Yellow
           Write-Host "========================================" -ForegroundColor Yellow
           # 不退出，允许构建继续
         } else {
@@ -313,18 +388,29 @@ jobs:
           exit 1
         }
         
-        # 验证 SSL 插件
+        # 验证 SSL/TLS 插件
         $sslPlugins = Get-ChildItem -Path "release\plugins\ssl" -Filter "*.dll" -ErrorAction SilentlyContinue
-        if ($sslPlugins -and $sslPlugins.Count -gt 0) {
-          Write-Host "✓ Qt SSL 插件 ($($sslPlugins.Count) 个):" -ForegroundColor Green
-          foreach ($plugin in $sslPlugins) {
-            Write-Host "    - $($plugin.Name) ($([math]::Round($plugin.Length/1KB, 2)) KB)" -ForegroundColor Green
+        $tlsPlugins = Get-ChildItem -Path "release\plugins\tls" -Filter "*.dll" -ErrorAction SilentlyContinue
+        $totalPlugins = ($sslPlugins ? $sslPlugins.Count : 0) + ($tlsPlugins ? $tlsPlugins.Count : 0)
+        
+        if ($totalPlugins -gt 0) {
+          Write-Host "✓ Qt SSL/TLS 插件 ($totalPlugins 个):" -ForegroundColor Green
+          if ($sslPlugins) {
+            foreach ($plugin in $sslPlugins) {
+              Write-Host "    - [ssl] $($plugin.Name) ($([math]::Round($plugin.Length/1KB, 2)) KB)" -ForegroundColor Green
+            }
+          }
+          if ($tlsPlugins) {
+            foreach ($plugin in $tlsPlugins) {
+              Write-Host "    - [tls] $($plugin.Name) ($([math]::Round($plugin.Length/1KB, 2)) KB)" -ForegroundColor Green
+            }
           }
         } else {
-          Write-Host "⚠ Qt SSL 插件缺失" -ForegroundColor Yellow
-          Write-Host "   这可能导致 SSL/TLS 功能无法正常工作" -ForegroundColor Yellow
-          Write-Host "   但是，OpenSSL DLL 文件已存在，某些功能可能仍然可用" -ForegroundColor Yellow
-          Write-Host "   建议在运行时验证 HTTPS 功能" -ForegroundColor Yellow
+          Write-Host "⚠ Qt SSL/TLS 插件缺失" -ForegroundColor Yellow
+          Write-Host "   注意: 这对于某些 Qt 5.15.2 分发版是正常的" -ForegroundColor Yellow
+          Write-Host "   Qt 5.15.2 主要依赖 OpenSSL DLL 文件（已复制）" -ForegroundColor Yellow
+          Write-Host "   HTTPS 功能应该可以正常工作" -ForegroundColor Yellow
+          Write-Host "   如果遇到问题，请参考文档手动添加 SSL 插件" -ForegroundColor Yellow
           # 不退出，允许构建继续，因为 OpenSSL DLL 文件已存在
         }
         
@@ -334,11 +420,15 @@ jobs:
         
         # 最终状态检查
         $finalSslPlugins = Get-ChildItem -Path "release\plugins\ssl" -Filter "*.dll" -ErrorAction SilentlyContinue
-        if ($finalSslPlugins -and $finalSslPlugins.Count -gt 0) {
-          Write-Host "✓ 所有必要的 SSL/TLS 文件已就绪" -ForegroundColor Green
+        $finalTlsPlugins = Get-ChildItem -Path "release\plugins\tls" -Filter "*.dll" -ErrorAction SilentlyContinue
+        $totalFinalPlugins = ($finalSslPlugins ? $finalSslPlugins.Count : 0) + ($finalTlsPlugins ? $finalTlsPlugins.Count : 0)
+        
+        if ($totalFinalPlugins -gt 0) {
+          Write-Host "✓ 所有 SSL/TLS 文件已就绪（包括 $totalFinalPlugins 个插件）" -ForegroundColor Green
         } else {
-          Write-Host "⚠ SSL 插件缺失，但 OpenSSL DLL 已存在" -ForegroundColor Yellow
-          Write-Host "  构建将继续，但建议在运行时验证 HTTPS 功能" -ForegroundColor Yellow
+          Write-Host "⚠ SSL/TLS 插件缺失，但 OpenSSL DLL 已存在" -ForegroundColor Yellow
+          Write-Host "  对于 Qt 5.15.2，这可能是正常的" -ForegroundColor Yellow
+          Write-Host "  HTTPS 功能应该可以工作，如有问题请查看应用日志" -ForegroundColor Yellow
         }
     
     - name: Create portable package
