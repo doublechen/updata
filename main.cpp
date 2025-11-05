@@ -82,13 +82,13 @@ int main(int argc, char *argv[])
             errorMsg += "⚠ 警告: OpenSSL DLL 文件缺失，HTTPS 请求将无法正常工作！";
             QMessageBox::critical(nullptr, "SSL/TLS 错误", errorMsg);
         } else if (!hasPlugins) {
-            errorMsg += "⚠ 警告: Qt SSL 插件缺失，HTTPS 功能可能受限。\n"
-                       + "但 OpenSSL DLL 文件已存在，某些功能可能仍然可用。\n"
-                       + "建议修复以获取完整的 SSL/TLS 支持。";
+            errorMsg += QString("⚠ 警告: Qt SSL 插件缺失，HTTPS 功能可能受限。\n"
+                       "但 OpenSSL DLL 文件已存在，某些功能可能仍然可用。\n"
+                       "建议修复以获取完整的 SSL/TLS 支持。");
             QMessageBox::warning(nullptr, "SSL/TLS 警告", errorMsg);
         } else {
-            errorMsg += "⚠ 警告: SSL/TLS 支持未完全启用，但必要文件似乎存在。\n"
-                       + "如果 HTTPS 请求失败，请检查上述文件是否正确。";
+            errorMsg += QString("⚠ 警告: SSL/TLS 支持未完全启用，但必要文件似乎存在。\n"
+                       "如果 HTTPS 请求失败，请检查上述文件是否正确。");
             QMessageBox::warning(nullptr, "SSL/TLS 警告", errorMsg);
         }
     }
