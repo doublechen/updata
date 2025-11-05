@@ -17,27 +17,57 @@ int main(int argc, char *argv[])
 {
     QApplication app(argc, argv);
     
-    // 在 Qt 初始化之前，预加载 OpenSSL DLL
-    // 这可以解决某些情况下 Qt 无法自动找到 OpenSSL 的问题
-    QString appDir = QApplication::applicationDirPath();
-    QString cryptoDll = appDir + "/libcrypto-1_1.dll";
-    QString sslDll = appDir + "/libssl-1_1.dll";
+    // 预加载 OpenSSL DLL - 必须在 QApplication 之前
+    QString appDir = QCoreApplication::applicationDirPath();
     
-    // 尝试预加载 OpenSSL DLL
-    QLibrary cryptoLib(cryptoDll);
-    QLibrary sslLib(sslDll);
+    qDebug() << "========================================";
+    qDebug() << "预加载 OpenSSL DLL";
+    qDebug() << "========================================";
+    qDebug() << "应用程序目录:" << appDir;
     
-    if (cryptoLib.load()) {
-        qDebug() << "成功预加载:" << cryptoDll;
-    } else {
-        qDebug() << "无法预加载:" << cryptoDll << "错误:" << cryptoLib.errorString();
+    // 尝试多个可能的文件名
+    QStringList cryptoNames = {"libcrypto-1_1.dll", "libcrypto-1_1-x64.dll"};
+    QStringList sslNames = {"libssl-1_1.dll", "libssl-1_1-x64.dll"};
+    
+    bool cryptoLoaded = false;
+    bool sslLoaded = false;
+    
+    // 尝试加载 libcrypto
+    for (const QString &name : cryptoNames) {
+        QString fullPath = appDir + "/" + name;
+        if (QFile::exists(fullPath)) {
+            QLibrary cryptoLib(fullPath);
+            if (cryptoLib.load()) {
+                qDebug() << "✓ 成功加载:" << name;
+                cryptoLoaded = true;
+                break;
+            } else {
+                qDebug() << "✗ 加载失败:" << name << "错误:" << cryptoLib.errorString();
+            }
+        } else {
+            qDebug() << "✗ 文件不存在:" << name;
+        }
     }
     
-    if (sslLib.load()) {
-        qDebug() << "成功预加载:" << sslDll;
-    } else {
-        qDebug() << "无法预加载:" << sslDll << "错误:" << sslLib.errorString();
+    // 尝试加载 libssl
+    for (const QString &name : sslNames) {
+        QString fullPath = appDir + "/" + name;
+        if (QFile::exists(fullPath)) {
+            QLibrary sslLib(fullPath);
+            if (sslLib.load()) {
+                qDebug() << "✓ 成功加载:" << name;
+                sslLoaded = true;
+                break;
+            } else {
+                qDebug() << "✗ 加载失败:" << name << "错误:" << sslLib.errorString();
+            }
+        } else {
+            qDebug() << "✗ 文件不存在:" << name;
+        }
     }
+    
+    qDebug() << "预加载结果: libcrypto =" << (cryptoLoaded ? "成功" : "失败")
+             << ", libssl =" << (sslLoaded ? "成功" : "失败");
     
     // 设置应用程序信息
     app.setApplicationName("数据上传工具");
@@ -52,24 +82,55 @@ int main(int argc, char *argv[])
 #endif
     
     // 检查 OpenSSL DLL 文件是否存在
+    QString cryptoDll = appDir + "/libcrypto-1_1.dll";
+    QString sslDll = appDir + "/libssl-1_1.dll";
     bool cryptoExists = QFile::exists(cryptoDll);
     bool sslExists = QFile::exists(sslDll);
+    
+    // 如果标准名称不存在，检查 x64 版本
+    if (!cryptoExists) {
+        QString cryptoDllX64 = appDir + "/libcrypto-1_1-x64.dll";
+        if (QFile::exists(cryptoDllX64)) {
+            cryptoDll = cryptoDllX64;
+            cryptoExists = true;
+        }
+    }
+    if (!sslExists) {
+        QString sslDllX64 = appDir + "/libssl-1_1-x64.dll";
+        if (QFile::exists(sslDllX64)) {
+            sslDll = sslDllX64;
+            sslExists = true;
+        }
+    }
     
     // 检查 SSL/TLS 支持
     bool sslSupported = QSslSocket::supportsSsl();
     QString sslVersion = QSslSocket::sslLibraryVersionString();
     QString sslBuildVersion = QSslSocket::sslLibraryBuildVersionString();
     
+    qDebug() << "";
     qDebug() << "========================================";
     qDebug() << "SSL/TLS 配置检查";
     qDebug() << "========================================";
-    qDebug() << "SSL 支持:" << sslSupported;
-    qDebug() << "SSL 运行时版本:" << sslVersion;
-    qDebug() << "SSL 编译版本:" << sslBuildVersion;
-    
-    qDebug() << "OpenSSL DLL 检查:";
-    qDebug() << "  libcrypto-1_1.dll:" << (cryptoExists ? "存在" : "不存在") << "(" << cryptoDll << ")";
-    qDebug() << "  libssl-1_1.dll:" << (sslExists ? "存在" : "不存在") << "(" << sslDll << ")";
+    qDebug() << "Qt 版本:" << QT_VERSION_STR;
+    qDebug() << "SSL 支持:" << (sslSupported ? "✓ 是" : "✗ 否");
+    qDebug() << "SSL 运行时版本:" << (sslVersion.isEmpty() ? "未知" : sslVersion);
+    qDebug() << "SSL 编译版本:" << (sslBuildVersion.isEmpty() ? "未知" : sslBuildVersion);
+    qDebug() << "";
+    qDebug() << "OpenSSL DLL 文件:";
+    qDebug() << "  " << QFileInfo(cryptoDll).fileName() << ":" << (cryptoExists ? "✓ 存在" : "✗ 不存在");
+    qDebug() << "    路径:" << cryptoDll;
+    if (cryptoExists) {
+        QFileInfo info(cryptoDll);
+        qDebug() << "    大小:" << info.size() << "字节";
+    }
+    qDebug() << "  " << QFileInfo(sslDll).fileName() << ":" << (sslExists ? "✓ 存在" : "✗ 不存在");
+    qDebug() << "    路径:" << sslDll;
+    if (sslExists) {
+        QFileInfo info(sslDll);
+        qDebug() << "    大小:" << info.size() << "字节";
+    }
+    qDebug() << "========================================";
     
     // 只在严重缺失 OpenSSL DLL 时显示错误
     // Qt 5.15.2 主要依赖 OpenSSL DLL，SSL 插件是可选的

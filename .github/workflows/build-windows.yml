@@ -145,12 +145,16 @@ jobs:
         # 方法1: 优先从项目 dll 目录复制（支持新的 x64 命名格式）
         # 首先尝试查找新的 x64 命名格式文件
         if ((Test-Path "dll\libcrypto-1_1-x64.dll") -and (Test-Path "dll\libssl-1_1-x64.dll")) {
-          # 复制新格式文件并重命名为标准名称
+          # 复制新格式文件并重命名为标准名称，同时也保留 x64 版本
           Copy-Item "dll\libcrypto-1_1-x64.dll" -Destination "release\libcrypto-1_1.dll" -Force
           Copy-Item "dll\libssl-1_1-x64.dll" -Destination "release\libssl-1_1.dll" -Force
-          Write-Host "已从项目 dll 目录复制 OpenSSL DLL (x64版本，已重命名为标准名称)" -ForegroundColor Green
-          Write-Host "  - libcrypto-1_1-x64.dll -> libcrypto-1_1.dll" -ForegroundColor Green
-          Write-Host "  - libssl-1_1-x64.dll -> libssl-1_1.dll" -ForegroundColor Green
+          Copy-Item "dll\libcrypto-1_1-x64.dll" -Destination "release\libcrypto-1_1-x64.dll" -Force
+          Copy-Item "dll\libssl-1_1-x64.dll" -Destination "release\libssl-1_1-x64.dll" -Force
+          Write-Host "已从项目 dll 目录复制 OpenSSL DLL (两种命名格式)" -ForegroundColor Green
+          Write-Host "  - libcrypto-1_1.dll (标准名称)" -ForegroundColor Green
+          Write-Host "  - libcrypto-1_1-x64.dll (x64名称)" -ForegroundColor Green
+          Write-Host "  - libssl-1_1.dll (标准名称)" -ForegroundColor Green
+          Write-Host "  - libssl-1_1-x64.dll (x64名称)" -ForegroundColor Green
           $Copied = $true
         } elseif ((Test-Path "dll\64\libcrypto-1_1.dll") -and (Test-Path "dll\64\libssl-1_1.dll")) {
           # 方法1b: 从 dll/64 目录复制（64位版本，最可靠）
