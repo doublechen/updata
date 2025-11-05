@@ -58,6 +58,10 @@ int main(int argc, char *argv[])
             sslPlugins = sslDir.entryInfoList(QStringList() << "*.dll", QDir::Files);
         }
         
+        // 根据文件存在情况决定错误级别
+        bool hasDlls = cryptoExists && sslExists;
+        bool hasPlugins = sslPlugins.size() > 0;
+        
         QString errorMsg = QString("SSL/TLS 支持未启用！\n\n")
                           + "SSL 运行时版本: " + (sslVersion.isEmpty() ? "未知" : sslVersion) + "\n"
                           + "SSL 编译版本: " + (sslBuildVersion.isEmpty() ? "未知" : sslBuildVersion) + "\n\n"
@@ -72,10 +76,21 @@ int main(int argc, char *argv[])
                           + "1. 确保 OpenSSL DLL 文件存在于应用程序目录\n"
                           + "2. 确保 Qt SSL 插件存在于 plugins\\ssl 目录\n"
                           + "3. 运行 copy_openssl_dll.bat 脚本进行自动修复\n"
-                          + "4. 或参考 OPENSSL_MANUAL_FIX.md 进行手动修复\n\n"
-                          + "HTTPS 请求将无法正常工作。";
+                          + "4. 或参考 OPENSSL_MANUAL_FIX.md 进行手动修复\n\n";
         
-        QMessageBox::critical(nullptr, "SSL/TLS 错误", errorMsg);
+        if (!hasDlls) {
+            errorMsg += "⚠ 警告: OpenSSL DLL 文件缺失，HTTPS 请求将无法正常工作！";
+            QMessageBox::critical(nullptr, "SSL/TLS 错误", errorMsg);
+        } else if (!hasPlugins) {
+            errorMsg += "⚠ 警告: Qt SSL 插件缺失，HTTPS 功能可能受限。\n"
+                       + "但 OpenSSL DLL 文件已存在，某些功能可能仍然可用。\n"
+                       + "建议修复以获取完整的 SSL/TLS 支持。";
+            QMessageBox::warning(nullptr, "SSL/TLS 警告", errorMsg);
+        } else {
+            errorMsg += "⚠ 警告: SSL/TLS 支持未完全启用，但必要文件似乎存在。\n"
+                       + "如果 HTTPS 请求失败，请检查上述文件是否正确。";
+            QMessageBox::warning(nullptr, "SSL/TLS 警告", errorMsg);
+        }
     }
     
     MainWindow window;
