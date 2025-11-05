@@ -79,8 +79,16 @@ jobs:
         
         $Copied = $false
         
-        # 方法1: 优先从项目 dll 目录复制（最可靠）
-        if ((Test-Path "dll\libcrypto-1_1.dll") -and (Test-Path "dll\libssl-1_1.dll")) {
+        # 方法1: 优先从项目 dll/64 目录复制（64位版本，最可靠）
+        if ((Test-Path "dll\64\libcrypto-1_1.dll") -and (Test-Path "dll\64\libssl-1_1.dll")) {
+          Copy-Item "dll\64\libcrypto-1_1.dll" -Destination "release\" -Force
+          Copy-Item "dll\64\libssl-1_1.dll" -Destination "release\" -Force
+          Write-Host "已从项目 dll/64 目录复制 OpenSSL DLL (64位版本)" -ForegroundColor Green
+          Write-Host "  - libcrypto-1_1.dll" -ForegroundColor Green
+          Write-Host "  - libssl-1_1.dll" -ForegroundColor Green
+          $Copied = $true
+        } elseif ((Test-Path "dll\libcrypto-1_1.dll") -and (Test-Path "dll\libssl-1_1.dll")) {
+          # 方法1b: 从 dll 目录复制（备用）
           Copy-Item "dll\libcrypto-1_1.dll" -Destination "release\" -Force
           Copy-Item "dll\libssl-1_1.dll" -Destination "release\" -Force
           Write-Host "已从项目 dll 目录复制 OpenSSL DLL" -ForegroundColor Green
@@ -135,12 +143,31 @@ jobs:
           exit 1
         }
         
-        # 检查 Qt 网络插件
-        Write-Host "检查 Qt 网络插件..." -ForegroundColor Cyan
+        # 检查并复制 Qt SSL 插件（关键！）
+        Write-Host "检查 Qt SSL 插件..." -ForegroundColor Cyan
         $QtPlugins = "$env:Qt5_DIR\plugins"
+        
+        # Qt 5.15 需要 SSL 插件才能使用 OpenSSL
+        if (Test-Path "$QtPlugins\ssl") {
+          New-Item -ItemType Directory -Path "release\plugins\ssl" -Force | Out-Null
+          $sslPlugin = Get-ChildItem -Path "$QtPlugins\ssl" -Filter "*.dll" -ErrorAction SilentlyContinue
+          if ($sslPlugin) {
+            foreach ($plugin in $sslPlugin) {
+              Copy-Item $plugin.FullName -Destination "release\plugins\ssl\" -Force
+              Write-Host "✓ 已复制 SSL 插件: $($plugin.Name)" -ForegroundColor Green
+            }
+          } else {
+            Write-Host "警告: Qt SSL 插件目录存在但未找到 DLL 文件" -ForegroundColor Yellow
+          }
+        } else {
+          Write-Host "警告: 未找到 Qt SSL 插件目录: $QtPlugins\ssl" -ForegroundColor Yellow
+        }
+        
+        # 检查并复制 Qt 网络插件
         if (Test-Path "$QtPlugins\networkinformation") {
-          Write-Host "找到 Qt 网络插件目录，复制到 release..." -ForegroundColor Green
-          Copy-Item "$QtPlugins\networkinformation" -Destination "release\" -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Path "release\plugins\networkinformation" -Force | Out-Null
+          Copy-Item "$QtPlugins\networkinformation\*" -Destination "release\plugins\networkinformation\" -Recurse -Force -ErrorAction SilentlyContinue
+          Write-Host "✓ 已复制 networkinformation 插件" -ForegroundColor Green
         }
         
         # 确保 DLL 文件在正确位置（与 exe 同目录）

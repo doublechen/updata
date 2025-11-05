@@ -24,14 +24,24 @@ if not exist "%RELEASE_DIR%\DataUploadTool.exe" (
     exit /b 1
 )
 
-REM 方法1: 优先从项目 dll 目录复制（最可靠）
+REM 方法1: 优先从项目 dll/64 目录复制（64位版本，最可靠）
+if exist "dll\64\libcrypto-1_1.dll" if exist "dll\64\libssl-1_1.dll" (
+    copy "dll\64\libcrypto-1_1.dll" "%RELEASE_DIR%\" /Y >nul
+    copy "dll\64\libssl-1_1.dll" "%RELEASE_DIR%\" /Y >nul
+    echo 已从项目 dll/64 目录复制 OpenSSL DLL (64位版本)
+    echo   - libcrypto-1_1.dll
+    echo   - libssl-1_1.dll
+    goto :copy_ssl_plugin
+)
+
+REM 方法1b: 从项目 dll 目录复制（备用）
 if exist "dll\libcrypto-1_1.dll" if exist "dll\libssl-1_1.dll" (
     copy "dll\libcrypto-1_1.dll" "%RELEASE_DIR%\" /Y >nul
     copy "dll\libssl-1_1.dll" "%RELEASE_DIR%\" /Y >nul
     echo 已从项目 dll 目录复制 OpenSSL DLL
     echo   - libcrypto-1_1.dll
     echo   - libssl-1_1.dll
-    goto :success
+    goto :copy_ssl_plugin
 )
 
 REM 方法2: 尝试从 Qt 目录复制
@@ -50,6 +60,21 @@ if defined Qt5_DIR (
     )
 )
 
+REM 复制 Qt SSL 插件（关键！）
+:copy_ssl_plugin
+if defined Qt5_DIR (
+    set QT_PLUGINS=%Qt5_DIR%\plugins\ssl
+    if exist "%QT_PLUGINS%" (
+        echo.
+        echo 复制 Qt SSL 插件...
+        if not exist "%RELEASE_DIR%\plugins\ssl" mkdir "%RELEASE_DIR%\plugins\ssl"
+        copy "%QT_PLUGINS%\*.dll" "%RELEASE_DIR%\plugins\ssl\" /Y >nul
+        echo 已复制 Qt SSL 插件到 plugins\ssl 目录
+    ) else (
+        echo 警告: 未找到 Qt SSL 插件目录: %QT_PLUGINS%
+    )
+)
+
 REM 检查是否已复制成功
 :success
 if exist "%RELEASE_DIR%\libcrypto-1_1.dll" if exist "%RELEASE_DIR%\libssl-1_1.dll" (
@@ -61,6 +86,12 @@ if exist "%RELEASE_DIR%\libcrypto-1_1.dll" if exist "%RELEASE_DIR%\libssl-1_1.dl
     echo 文件列表:
     dir "%RELEASE_DIR%\libcrypto*.dll" /b
     dir "%RELEASE_DIR%\libssl*.dll" /b
+    echo.
+    if exist "%RELEASE_DIR%\plugins\ssl\*.dll" (
+        echo SSL 插件已复制到 plugins\ssl 目录
+    ) else (
+        echo 警告: SSL 插件可能未复制
+    )
     echo.
     pause
     exit /b 0
