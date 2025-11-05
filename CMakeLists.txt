@@ -23,8 +23,19 @@ set(HEADERS
     MainWindow.h
 )
 
+# Windows 资源文件（图标）
+if(WIN32)
+    set(RESOURCE_FILES
+        app.rc
+    )
+endif()
+
 # 创建可执行文件
-add_executable(${PROJECT_NAME} ${SOURCES} ${HEADERS})
+if(WIN32)
+    add_executable(${PROJECT_NAME} ${SOURCES} ${HEADERS} ${RESOURCE_FILES})
+else()
+    add_executable(${PROJECT_NAME} ${SOURCES} ${HEADERS})
+endif()
 
 # 链接Qt库
 target_link_libraries(${PROJECT_NAME} PRIVATE
@@ -38,7 +49,7 @@ if(WIN32)
     # 暂时启用控制台以便查看调试信息
     # 如果需要发布版本，可以改为 WIN32_EXECUTABLE TRUE
     set_target_properties(${PROJECT_NAME} PROPERTIES
-        WIN32_EXECUTABLE FALSE
+        WIN32_EXECUTABLE TRUE
     )
 endif()
 

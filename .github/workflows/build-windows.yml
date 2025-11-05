@@ -67,6 +67,67 @@ jobs:
     - name: Setup MSVC
       uses: microsoft/setup-msbuild@v1
     
+    - name: Convert PNG to ICO
+      run: |
+        Write-Host "将 PNG 转换为 ICO 格式..." -ForegroundColor Cyan
+        
+        # 使用 PowerShell 和 .NET 将 PNG 转换为 ICO
+        # 由于 GitHub Actions 可能没有 ImageMagick，我们使用纯 PowerShell 方案
+        
+        # 方法1: 尝试使用在线转换或直接重命名（临时方案）
+        if (Test-Path "icon-1024x1024.png") {
+          # 在 Windows 上，我们可以使用 magick（如果可用）或者跳过
+          # 对于 GitHub Actions，我们创建一个占位符或使用 Qt 自带的图标
+          
+          # 检查是否有 magick 命令
+          $magickPath = Get-Command magick -ErrorAction SilentlyContinue
+          
+          if ($magickPath) {
+            Write-Host "使用 ImageMagick 转换图标..." -ForegroundColor Cyan
+            magick convert icon-1024x1024.png -define icon:auto-resize=256,128,64,48,32,16 app_icon.ico
+            Write-Host "✓ 图标转换完成" -ForegroundColor Green
+          } else {
+            Write-Host "ImageMagick 未安装，尝试使用备选方案..." -ForegroundColor Yellow
+            
+            # 使用 Python PIL/Pillow 转换（GitHub Actions 有 Python）
+            $pythonScript = @"
+from PIL import Image
+import sys
+
+try:
+    img = Image.open('icon-1024x1024.png')
+    # 创建多个尺寸的图标
+    icon_sizes = [(256, 256), (128, 128), (64, 64), (48, 48), (32, 32), (16, 16)]
+    img.save('app_icon.ico', format='ICO', sizes=icon_sizes)
+    print('✓ 图标转换成功')
+    sys.exit(0)
+except Exception as e:
+    print(f'✗ 图标转换失败: {e}')
+    # 创建一个简单的占位符
+    img = Image.new('RGB', (256, 256), color='#2d9d88')
+    img.save('app_icon.ico', format='ICO', sizes=[(256, 256), (128, 128), (64, 64), (48, 48), (32, 32), (16, 16)])
+    print('✓ 已创建占位符图标')
+    sys.exit(0)
+"@
+            
+            # 安装 Pillow 并转换
+            pip install Pillow --quiet
+            $pythonScript | Out-File -FilePath "convert_icon.py" -Encoding UTF8
+            python convert_icon.py
+            Remove-Item "convert_icon.py" -Force
+          }
+          
+          # 验证 ICO 文件是否创建
+          if (Test-Path "app_icon.ico") {
+            $iconSize = (Get-Item "app_icon.ico").Length
+            Write-Host "✓ 图标文件已创建: app_icon.ico ($iconSize 字节)" -ForegroundColor Green
+          } else {
+            Write-Host "✗ 警告: 图标文件创建失败" -ForegroundColor Yellow
+          }
+        } else {
+          Write-Host "警告: icon-1024x1024.png 文件不存在" -ForegroundColor Yellow
+        }
+    
     - name: Configure CMake
       run: |
         Write-Host "配置 CMake..." -ForegroundColor Cyan

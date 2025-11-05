@@ -70,7 +70,7 @@ int main(int argc, char *argv[])
              << ", libssl =" << (sslLoaded ? "成功" : "失败");
     
     // 设置应用程序信息
-    app.setApplicationName("数据上传工具");
+    app.setApplicationName("40+成绩发布系统");
     app.setApplicationVersion("1.0.0");
     app.setOrganizationName("DataUploadTool");
     

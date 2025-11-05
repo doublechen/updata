@@ -42,7 +42,7 @@ MainWindow::MainWindow(QWidget *parent)
     setupUI();
     setupStyles();
     
-    setWindowTitle("数据上传工具");
+    setWindowTitle("40+成绩发布系统");
     resize(1600, 1000);
 }
 
@@ -195,15 +195,15 @@ void MainWindow::setupStyles()
         
         QLabel {
             font-weight: 600;
-            color: #495057;
-            font-size: 14px;
-            margin-bottom: 4px;
+            color: #000000;
+            font-size: 18px;
+            margin-bottom: 6px;
         }
         
         QLineEdit {
-            padding: 10px 12px;
-            font-size: 16px;
-            color: #495057;
+            padding: 12px 14px;
+            font-size: 18px;
+            color: #000000;
             background-color: #ffffff;
             border: 1px solid #ced4da;
             border-radius: 4px;
@@ -228,62 +228,54 @@ void MainWindow::setupStyles()
         }
         
         QPushButton {
-            padding: 12px 20px;
-            font-size: 16px;
+            padding: 14px 24px;
+            font-size: 18px;
             font-weight: 600;
-            border: 1px solid transparent;
-            border-radius: 4px;
-            cursor: pointer;
+            border-radius: 6px;
         }
         
         QPushButton#btnStart {
-            color: #ffffff;
+            color: white;
             background-color: #00c853;
-            border-color: #00c853;
+            border: 2px solid #00c853;
         }
         
         QPushButton#btnStart:hover {
             background-color: #00b248;
-            border-color: #009624;
+            border: 2px solid #009624;
         }
         
         QPushButton#btnStart:pressed {
             background-color: #009624;
-            border-color: #008018;
-            padding-top: 13px;
-            padding-bottom: 11px;
+            border: 2px solid #008018;
         }
         
         QPushButton#btnStart:disabled {
-            opacity: 0.65;
-            background-color: #6c757d;
-            border-color: #6c757d;
-            cursor: not-allowed;
+            background-color: #9e9e9e;
+            border: 2px solid #9e9e9e;
+            color: #e0e0e0;
         }
         
         QPushButton#btnStop {
-            color: #ffffff;
+            color: white;
             background-color: #ff1744;
-            border-color: #ff1744;
+            border: 2px solid #ff1744;
         }
         
         QPushButton#btnStop:hover {
             background-color: #f50057;
-            border-color: #e91e63;
+            border: 2px solid #e91e63;
         }
         
         QPushButton#btnStop:pressed {
             background-color: #e91e63;
-            border-color: #c2185b;
-            padding-top: 13px;
-            padding-bottom: 11px;
+            border: 2px solid #c2185b;
         }
         
         QPushButton#btnStop:disabled {
-            opacity: 0.65;
-            background-color: #6c757d;
-            border-color: #6c757d;
-            cursor: not-allowed;
+            background-color: #9e9e9e;
+            border: 2px solid #9e9e9e;
+            color: #e0e0e0;
         }
         
         QTextEdit#logArea {

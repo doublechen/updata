@@ -1,0 +1,36 @@
+// Windows 资源文件
+#include <windows.h>
+
+// 应用程序图标
+IDI_ICON1 ICON "app_icon.ico"
+
+// 版本信息
+VS_VERSION_INFO VERSIONINFO
+FILEVERSION     1,0,0,0
+PRODUCTVERSION  1,0,0,0
+FILEFLAGSMASK   VS_FFI_FILEFLAGSMASK
+FILEFLAGS       0x0L
+FILEOS          VOS__WINDOWS32
+FILETYPE        VFT_APP
+FILESUBTYPE     VFT2_UNKNOWN
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "080404b0"
+        BEGIN
+            VALUE "CompanyName", "DataUploadTool"
+            VALUE "FileDescription", "40+成绩发布系统"
+            VALUE "FileVersion", "1.0.0.0"
+            VALUE "InternalName", "DataUploadTool"
+            VALUE "LegalCopyright", "Copyright (C) 2025"
+            VALUE "OriginalFilename", "DataUploadTool.exe"
+            VALUE "ProductName", "40+成绩发布系统"
+            VALUE "ProductVersion", "1.0.0.0"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x804, 1200
+    END
+END
+
