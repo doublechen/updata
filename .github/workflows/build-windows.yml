@@ -74,9 +74,8 @@ jobs:
           -DCMAKE_BUILD_TYPE=Release `
           -DCMAKE_PREFIX_PATH="$env:Qt5_DIR" `
           -G "Visual Studio 17 2022" `
-          -A x64 `
-          -T v141
-        Write-Host "✓ CMake 配置完成（使用 VS 2017 工具集）" -ForegroundColor Green
+          -A x64
+        Write-Host "✓ CMake 配置完成" -ForegroundColor Green
     
     - name: Build
       run: cmake --build build --config Release --parallel
