@@ -52,7 +52,23 @@ jobs:
     - name: Package with windeployqt
       working-directory: release
       run: |
-        & "$env:Qt5_DIR\bin\windeployqt.exe" DataUploadTool.exe
+        # 使用 windeployqt 部署所有依赖，包括网络插件
+        & "$env:Qt5_DIR\bin\windeployqt.exe" --compiler-runtime --network DataUploadTool.exe
+        Write-Host "windeployqt 完成，检查部署的文件..." -ForegroundColor Green
+        
+        # 检查关键文件是否存在
+        if (Test-Path "platforms\qwindows.dll") {
+          Write-Host "✓ platforms 目录已部署" -ForegroundColor Green
+        }
+        
+        # 检查网络插件目录
+        if (Test-Path "networkinformation") {
+          Write-Host "✓ networkinformation 插件已部署" -ForegroundColor Green
+        }
+        
+        # 列出所有目录
+        Write-Host "已部署的插件目录:" -ForegroundColor Cyan
+        Get-ChildItem -Directory | ForEach-Object { Write-Host "  - $($_.Name)" -ForegroundColor Cyan }
     
     - name: Copy OpenSSL DLL files
       run: |
@@ -99,9 +115,14 @@ jobs:
           if ($libcrypto -and $libssl) {
             Write-Host "========================================" -ForegroundColor Green
             Write-Host "OpenSSL DLL 文件验证成功:" -ForegroundColor Green
-            Write-Host "  - $($libcrypto.Name)" -ForegroundColor Green
-            Write-Host "  - $($libssl.Name)" -ForegroundColor Green
+            Write-Host "  - $($libcrypto.Name) ($([math]::Round($libcrypto.Length/1KB, 2)) KB)" -ForegroundColor Green
+            Write-Host "  - $($libssl.Name) ($([math]::Round($libssl.Length/1KB, 2)) KB)" -ForegroundColor Green
             Write-Host "========================================" -ForegroundColor Green
+            
+            # 验证 DLL 文件架构（64位）
+            Write-Host "验证 DLL 文件架构..." -ForegroundColor Cyan
+            $fileInfo = [System.Diagnostics.FileVersionInfo]::GetVersionInfo($libcrypto.FullName)
+            Write-Host "DLL 文件位置: $($libcrypto.FullName)" -ForegroundColor Cyan
           } else {
             Write-Host "警告: DLL 文件可能未正确复制" -ForegroundColor Yellow
             exit 1
@@ -112,6 +133,23 @@ jobs:
           Write-Host "请确保项目 dll 目录包含 libcrypto-1_1.dll 和 libssl-1_1.dll" -ForegroundColor Red
           Write-Host "========================================" -ForegroundColor Red
           exit 1
+        }
+        
+        # 检查 Qt 网络插件
+        Write-Host "检查 Qt 网络插件..." -ForegroundColor Cyan
+        $QtPlugins = "$env:Qt5_DIR\plugins"
+        if (Test-Path "$QtPlugins\networkinformation") {
+          Write-Host "找到 Qt 网络插件目录，复制到 release..." -ForegroundColor Green
+          Copy-Item "$QtPlugins\networkinformation" -Destination "release\" -Recurse -Force -ErrorAction SilentlyContinue
+        }
+        
+        # 确保 DLL 文件在正确位置（与 exe 同目录）
+        Write-Host "最终验证: DLL 文件位置" -ForegroundColor Cyan
+        $finalCrypto = Get-Item "release\libcrypto*.dll" -ErrorAction SilentlyContinue | Select-Object -First 1
+        $finalSsl = Get-Item "release\libssl*.dll" -ErrorAction SilentlyContinue | Select-Object -First 1
+        if ($finalCrypto -and $finalSsl) {
+          Write-Host "✓ $($finalCrypto.Name) 在 release 目录" -ForegroundColor Green
+          Write-Host "✓ $($finalSsl.Name) 在 release 目录" -ForegroundColor Green
         }
     
     - name: Create portable package
