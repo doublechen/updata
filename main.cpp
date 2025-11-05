@@ -9,6 +9,7 @@
 #include <QMessageBox>
 #include <QDir>
 #include <QFile>
+#include <QFileInfoList>
 
 int main(int argc, char *argv[])
 {
@@ -48,13 +49,30 @@ int main(int argc, char *argv[])
     qDebug() << "  libssl-1_1.dll:" << (sslExists ? "存在" : "不存在") << "(" << sslDll << ")";
     
     if (!sslSupported) {
+        // 检查 Qt SSL 插件
+        QString sslPluginDir = appDir + "/plugins/ssl";
+        bool sslPluginExists = QDir(sslPluginDir).exists();
+        QFileInfoList sslPlugins;
+        if (sslPluginExists) {
+            QDir sslDir(sslPluginDir);
+            sslPlugins = sslDir.entryInfoList(QStringList() << "*.dll", QDir::Files);
+        }
+        
         QString errorMsg = QString("SSL/TLS 支持未启用！\n\n")
                           + "SSL 运行时版本: " + (sslVersion.isEmpty() ? "未知" : sslVersion) + "\n"
                           + "SSL 编译版本: " + (sslBuildVersion.isEmpty() ? "未知" : sslBuildVersion) + "\n\n"
                           + "OpenSSL DLL 状态:\n"
                           + "  libcrypto-1_1.dll: " + (cryptoExists ? "✓ 存在" : "✗ 不存在") + "\n"
                           + "  libssl-1_1.dll: " + (sslExists ? "✓ 存在" : "✗ 不存在") + "\n\n"
+                          + "Qt SSL 插件状态:\n"
+                          + "  插件目录: " + (sslPluginExists ? "✓ 存在" : "✗ 不存在") + " (" + sslPluginDir + ")\n"
+                          + "  插件文件: " + (sslPlugins.size() > 0 ? QString("✓ 找到 %1 个插件").arg(sslPlugins.size()) : "✗ 未找到") + "\n\n"
                           + "应用程序目录: " + appDir + "\n\n"
+                          + "修复方法:\n"
+                          + "1. 确保 OpenSSL DLL 文件存在于应用程序目录\n"
+                          + "2. 确保 Qt SSL 插件存在于 plugins\\ssl 目录\n"
+                          + "3. 运行 copy_openssl_dll.bat 脚本进行自动修复\n"
+                          + "4. 或参考 OPENSSL_MANUAL_FIX.md 进行手动修复\n\n"
                           + "HTTPS 请求将无法正常工作。";
         
         QMessageBox::critical(nullptr, "SSL/TLS 错误", errorMsg);

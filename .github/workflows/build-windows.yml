@@ -52,23 +52,42 @@ jobs:
     - name: Package with windeployqt
       working-directory: release
       run: |
-        # 使用 windeployqt 部署所有依赖，包括网络插件
-        & "$env:Qt5_DIR\bin\windeployqt.exe" --compiler-runtime --network DataUploadTool.exe
+        # 使用 windeployqt 部署所有依赖，包括网络和 SSL 插件
+        # --ssl 标志确保 SSL 插件被正确部署
+        & "$env:Qt5_DIR\bin\windeployqt.exe" --compiler-runtime --network --ssl DataUploadTool.exe
         Write-Host "windeployqt 完成，检查部署的文件..." -ForegroundColor Green
         
         # 检查关键文件是否存在
         if (Test-Path "platforms\qwindows.dll") {
           Write-Host "✓ platforms 目录已部署" -ForegroundColor Green
+        } else {
+          Write-Host "警告: platforms 目录未找到" -ForegroundColor Yellow
         }
         
         # 检查网络插件目录
-        if (Test-Path "networkinformation") {
+        if (Test-Path "plugins\networkinformation") {
           Write-Host "✓ networkinformation 插件已部署" -ForegroundColor Green
+        } else {
+          Write-Host "警告: networkinformation 插件未找到" -ForegroundColor Yellow
         }
         
-        # 列出所有目录
+        # 检查 SSL 插件目录（关键！）
+        if (Test-Path "plugins\ssl") {
+          Write-Host "✓ SSL 插件目录已部署" -ForegroundColor Green
+          Get-ChildItem -Path "plugins\ssl" -Filter "*.dll" | ForEach-Object {
+            Write-Host "  - $($_.Name)" -ForegroundColor Cyan
+          }
+        } else {
+          Write-Host "警告: SSL 插件目录未找到，将在后续步骤中手动复制" -ForegroundColor Yellow
+        }
+        
+        # 列出所有插件目录
         Write-Host "已部署的插件目录:" -ForegroundColor Cyan
-        Get-ChildItem -Directory | ForEach-Object { Write-Host "  - $($_.Name)" -ForegroundColor Cyan }
+        if (Test-Path "plugins") {
+          Get-ChildItem -Path "plugins" -Directory | ForEach-Object { 
+            Write-Host "  - plugins\$($_.Name)" -ForegroundColor Cyan 
+          }
+        }
     
     - name: Copy OpenSSL DLL files
       run: |
@@ -144,23 +163,58 @@ jobs:
         }
         
         # 检查并复制 Qt SSL 插件（关键！）
-        Write-Host "检查 Qt SSL 插件..." -ForegroundColor Cyan
+        Write-Host "========================================" -ForegroundColor Cyan
+        Write-Host "检查并复制 Qt SSL 插件" -ForegroundColor Cyan
+        Write-Host "========================================" -ForegroundColor Cyan
         $QtPlugins = "$env:Qt5_DIR\plugins"
         
         # Qt 5.15 需要 SSL 插件才能使用 OpenSSL
         if (Test-Path "$QtPlugins\ssl") {
-          New-Item -ItemType Directory -Path "release\plugins\ssl" -Force | Out-Null
-          $sslPlugin = Get-ChildItem -Path "$QtPlugins\ssl" -Filter "*.dll" -ErrorAction SilentlyContinue
-          if ($sslPlugin) {
-            foreach ($plugin in $sslPlugin) {
-              Copy-Item $plugin.FullName -Destination "release\plugins\ssl\" -Force
+          # 确保目标目录存在
+          if (-not (Test-Path "release\plugins\ssl")) {
+            New-Item -ItemType Directory -Path "release\plugins\ssl" -Force | Out-Null
+            Write-Host "已创建 plugins\ssl 目录" -ForegroundColor Green
+          }
+          
+          $sslPlugins = Get-ChildItem -Path "$QtPlugins\ssl" -Filter "*.dll" -ErrorAction SilentlyContinue
+          if ($sslPlugins) {
+            $copiedCount = 0
+            foreach ($plugin in $sslPlugins) {
+              $destPath = "release\plugins\ssl\$($plugin.Name)"
+              Copy-Item $plugin.FullName -Destination $destPath -Force
               Write-Host "✓ 已复制 SSL 插件: $($plugin.Name)" -ForegroundColor Green
+              $copiedCount++
+            }
+            Write-Host "共复制 $copiedCount 个 SSL 插件文件" -ForegroundColor Green
+            
+            # 验证复制的文件
+            $copiedPlugins = Get-ChildItem -Path "release\plugins\ssl" -Filter "*.dll"
+            if ($copiedPlugins.Count -gt 0) {
+              Write-Host "验证: 在 release\plugins\ssl 中找到 $($copiedPlugins.Count) 个插件文件" -ForegroundColor Green
+            } else {
+              Write-Host "错误: SSL 插件文件复制后未找到" -ForegroundColor Red
+              exit 1
             }
           } else {
-            Write-Host "警告: Qt SSL 插件目录存在但未找到 DLL 文件" -ForegroundColor Yellow
+            Write-Host "警告: Qt SSL 插件目录存在但未找到 DLL 文件: $QtPlugins\ssl" -ForegroundColor Yellow
+            Write-Host "列出目录内容:" -ForegroundColor Yellow
+            Get-ChildItem -Path "$QtPlugins\ssl" -ErrorAction SilentlyContinue | ForEach-Object {
+              Write-Host "  - $($_.Name)" -ForegroundColor Yellow
+            }
           }
         } else {
-          Write-Host "警告: 未找到 Qt SSL 插件目录: $QtPlugins\ssl" -ForegroundColor Yellow
+          Write-Host "错误: 未找到 Qt SSL 插件目录: $QtPlugins\ssl" -ForegroundColor Red
+          Write-Host "这会导致 SSL/TLS 功能无法正常工作！" -ForegroundColor Red
+          Write-Host "检查 Qt 插件目录是否存在:" -ForegroundColor Yellow
+          if (Test-Path $QtPlugins) {
+            Write-Host "Qt 插件目录存在: $QtPlugins" -ForegroundColor Yellow
+            Get-ChildItem -Path $QtPlugins -Directory | ForEach-Object {
+              Write-Host "  - $($_.Name)" -ForegroundColor Yellow
+            }
+          } else {
+            Write-Host "Qt 插件目录不存在: $QtPlugins" -ForegroundColor Red
+          }
+          exit 1
         }
         
         # 检查并复制 Qt 网络插件
@@ -170,14 +224,38 @@ jobs:
           Write-Host "✓ 已复制 networkinformation 插件" -ForegroundColor Green
         }
         
-        # 确保 DLL 文件在正确位置（与 exe 同目录）
-        Write-Host "最终验证: DLL 文件位置" -ForegroundColor Cyan
+        # 最终验证：确保所有必要的文件都存在
+        Write-Host "========================================" -ForegroundColor Cyan
+        Write-Host "最终验证: 所有 SSL/TLS 支持文件" -ForegroundColor Cyan
+        Write-Host "========================================" -ForegroundColor Cyan
+        
+        # 验证 OpenSSL DLL 文件
         $finalCrypto = Get-Item "release\libcrypto*.dll" -ErrorAction SilentlyContinue | Select-Object -First 1
         $finalSsl = Get-Item "release\libssl*.dll" -ErrorAction SilentlyContinue | Select-Object -First 1
         if ($finalCrypto -and $finalSsl) {
-          Write-Host "✓ $($finalCrypto.Name) 在 release 目录" -ForegroundColor Green
-          Write-Host "✓ $($finalSsl.Name) 在 release 目录" -ForegroundColor Green
+          Write-Host "✓ OpenSSL DLL 文件:" -ForegroundColor Green
+          Write-Host "    - $($finalCrypto.Name) ($([math]::Round($finalCrypto.Length/1KB, 2)) KB)" -ForegroundColor Green
+          Write-Host "    - $($finalSsl.Name) ($([math]::Round($finalSsl.Length/1KB, 2)) KB)" -ForegroundColor Green
+        } else {
+          Write-Host "✗ OpenSSL DLL 文件缺失！" -ForegroundColor Red
+          exit 1
         }
+        
+        # 验证 SSL 插件
+        $sslPlugins = Get-ChildItem -Path "release\plugins\ssl" -Filter "*.dll" -ErrorAction SilentlyContinue
+        if ($sslPlugins -and $sslPlugins.Count -gt 0) {
+          Write-Host "✓ Qt SSL 插件 ($($sslPlugins.Count) 个):" -ForegroundColor Green
+          foreach ($plugin in $sslPlugins) {
+            Write-Host "    - $($plugin.Name) ($([math]::Round($plugin.Length/1KB, 2)) KB)" -ForegroundColor Green
+          }
+        } else {
+          Write-Host "✗ Qt SSL 插件缺失！这会导致 SSL/TLS 功能无法正常工作！" -ForegroundColor Red
+          exit 1
+        }
+        
+        Write-Host "========================================" -ForegroundColor Green
+        Write-Host "所有 SSL/TLS 支持文件验证通过！" -ForegroundColor Green
+        Write-Host "========================================" -ForegroundColor Green
     
     - name: Create portable package
       run: |

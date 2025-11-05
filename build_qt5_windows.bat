@@ -151,6 +151,79 @@ if errorlevel 1 (
 
 cd ..
 
+REM ============================================
+REM 复制 OpenSSL DLL 文件
+REM ============================================
+echo.
+echo 正在复制 OpenSSL DLL 文件...
+set OPENSSL_COPIED=0
+
+REM 方法1: 优先从项目 dll 目录复制
+if exist "dll\libcrypto-1_1.dll" if exist "dll\libssl-1_1.dll" (
+    copy "dll\libcrypto-1_1.dll" "release\" /Y >nul 2>&1
+    copy "dll\libssl-1_1.dll" "release\" /Y >nul 2>&1
+    echo   已从项目 dll 目录复制 OpenSSL DLL
+    echo     - libcrypto-1_1.dll
+    echo     - libssl-1_1.dll
+    set OPENSSL_COPIED=1
+)
+
+REM 方法2: 如果项目目录没有，尝试从 Qt 目录复制
+if %OPENSSL_COPIED%==0 (
+    if exist "%QT_DIR%\bin\libcrypto-1_1.dll" if exist "%QT_DIR%\bin\libssl-1_1.dll" (
+        copy "%QT_DIR%\bin\libcrypto-1_1.dll" "release\" /Y >nul 2>&1
+        copy "%QT_DIR%\bin\libssl-1_1.dll" "release\" /Y >nul 2>&1
+        echo   已从 Qt 目录复制 OpenSSL DLL
+        echo     - libcrypto-1_1.dll
+        echo     - libssl-1_1.dll
+        set OPENSSL_COPIED=1
+    )
+)
+
+if %OPENSSL_COPIED%==0 (
+    echo   警告: 未找到 OpenSSL DLL 文件
+    echo   请手动运行 copy_openssl_dll.bat 或从以下地址下载:
+    echo   https://slproweb.com/products/Win32OpenSSL.html
+) else (
+    echo   OpenSSL DLL 文件复制完成
+)
+
+REM ============================================
+REM 复制 Qt SSL 插件（关键！）
+REM ============================================
+echo.
+echo 正在复制 Qt SSL 插件...
+if exist "%QT_DIR%\plugins\ssl" (
+    if not exist "release\plugins\ssl" mkdir "release\plugins\ssl"
+    copy "%QT_DIR%\plugins\ssl\*.dll" "release\plugins\ssl\" /Y >nul 2>&1
+    if errorlevel 1 (
+        echo   警告: Qt SSL 插件复制失败
+    ) else (
+        echo   Qt SSL 插件已复制到 plugins\ssl 目录
+    )
+) else (
+    echo   警告: 未找到 Qt SSL 插件目录: %QT_DIR%\plugins\ssl
+    echo   这可能导致 SSL/TLS 功能无法正常工作
+)
+
+REM ============================================
+REM 验证 SSL 支持
+REM ============================================
+echo.
+echo 验证 SSL/TLS 支持文件...
+if exist "release\libcrypto-1_1.dll" if exist "release\libssl-1_1.dll" (
+    echo   OpenSSL DLL: 已就绪
+) else (
+    echo   警告: OpenSSL DLL 文件缺失
+)
+
+if exist "release\plugins\ssl\qopensslbackend.dll" (
+    echo   Qt SSL 插件: 已就绪
+) else (
+    echo   警告: Qt SSL 插件缺失
+    echo   注意: 某些 Qt 版本可能使用不同的插件名称
+)
+
 echo.
 echo ============================================
 echo Qt5构建完成！
@@ -158,6 +231,12 @@ echo ============================================
 echo 可执行文件位置: release\DataUploadTool.exe
 echo.
 echo 您可以将release目录中的所有文件打包分发
+echo.
+echo 重要提示:
+echo - 如果遇到 SSL/TLS 错误，请确保:
+echo   1. OpenSSL DLL 文件存在于 release 目录
+echo   2. Qt SSL 插件存在于 release\plugins\ssl 目录
+echo   3. 运行 copy_openssl_dll.bat 进行手动修复
 echo ============================================
 pause
 
