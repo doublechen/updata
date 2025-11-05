@@ -439,15 +439,23 @@ jobs:
         Write-Host "最终验证: 所有 SSL/TLS 支持文件" -ForegroundColor Cyan
         Write-Host "========================================" -ForegroundColor Cyan
         
-        # 验证 OpenSSL DLL 文件
-        $finalCrypto = Get-Item "release\libcrypto*.dll" -ErrorAction SilentlyContinue | Select-Object -First 1
-        $finalSsl = Get-Item "release\libssl*.dll" -ErrorAction SilentlyContinue | Select-Object -First 1
+        # 验证 OpenSSL DLL 文件（在 lib 目录中）
+        $finalCrypto = Get-Item "release\lib\libcrypto*.dll" -ErrorAction SilentlyContinue | Select-Object -First 1
+        $finalSsl = Get-Item "release\lib\libssl*.dll" -ErrorAction SilentlyContinue | Select-Object -First 1
         if ($finalCrypto -and $finalSsl) {
-          Write-Host "✓ OpenSSL DLL 文件:" -ForegroundColor Green
-          Write-Host "    - $($finalCrypto.Name) ($([math]::Round($finalCrypto.Length/1KB, 2)) KB)" -ForegroundColor Green
-          Write-Host "    - $($finalSsl.Name) ($([math]::Round($finalSsl.Length/1KB, 2)) KB)" -ForegroundColor Green
+          Write-Host "✓ OpenSSL DLL 文件（在 lib 目录）:" -ForegroundColor Green
+          Write-Host "    - lib\$($finalCrypto.Name) ($([math]::Round($finalCrypto.Length/1KB, 2)) KB)" -ForegroundColor Green
+          Write-Host "    - lib\$($finalSsl.Name) ($([math]::Round($finalSsl.Length/1KB, 2)) KB)" -ForegroundColor Green
         } else {
           Write-Host "✗ OpenSSL DLL 文件缺失！" -ForegroundColor Red
+          Write-Host "查看 lib 目录:" -ForegroundColor Yellow
+          if (Test-Path "release\lib") {
+            Get-ChildItem -Path "release\lib" -Filter "*.dll" | Select-Object -First 10 | ForEach-Object {
+              Write-Host "  - $($_.Name)" -ForegroundColor Yellow
+            }
+          } else {
+            Write-Host "  lib 目录不存在！" -ForegroundColor Red
+          }
           exit 1
         }
         

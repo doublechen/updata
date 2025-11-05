@@ -18,6 +18,9 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonParseError>
+#include <QFile>
+#include <QTextStream>
+#include <QDir>
 #if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
 #include <QTextCodec>
 #else
@@ -44,6 +47,7 @@ private slots:
 private:
     void setupUI();
     void setupStyles();
+    void initializeLogFile();
     void addLog(const QString &message, const QString &logType = "info");
     void updateUIState(bool running);
     bool validateInputs();
@@ -108,6 +112,10 @@ private:
     QNetworkReply *uploadReply;
     
     int pendingRequests;
+    
+    // 日志文件
+    QFile *logFile;
+    QTextStream *logStream;
 };
 
 #endif // MAINWINDOW_H

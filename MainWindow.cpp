@@ -33,11 +33,16 @@ MainWindow::MainWindow(QWidget *parent)
     , inquiryReply(nullptr)
     , uploadReply(nullptr)
     , pendingRequests(0)
+    , logFile(nullptr)
+    , logStream(nullptr)
 {
     networkManager = new QNetworkAccessManager(this);
     taskTimer = new QTimer(this);
     taskTimer->setSingleShot(true);
     connect(taskTimer, &QTimer::timeout, this, &MainWindow::executeTask);
+    
+    // 初始化日志文件
+    initializeLogFile();
     
     setupUI();
     setupStyles();
@@ -48,6 +53,59 @@ MainWindow::MainWindow(QWidget *parent)
 
 MainWindow::~MainWindow()
 {
+    // 关闭日志文件
+    if (logStream) {
+        logStream->flush();
+        delete logStream;
+        logStream = nullptr;
+    }
+    if (logFile) {
+        logFile->close();
+        delete logFile;
+        logFile = nullptr;
+    }
+}
+
+void MainWindow::initializeLogFile()
+{
+    // 创建 logs 目录
+    QString appDir = QApplication::applicationDirPath();
+    QString logsDir = appDir + "/logs";
+    
+    QDir dir;
+    if (!dir.exists(logsDir)) {
+        if (dir.mkpath(logsDir)) {
+            qDebug() << "创建 logs 目录:" << logsDir;
+        } else {
+            qDebug() << "创建 logs 目录失败:" << logsDir;
+            return;
+        }
+    }
+    
+    // 生成日志文件名：yyyy-MM-dd-HH-mm-ss.log
+    QString timestamp = QDateTime::currentDateTime().toString("yyyy-MM-dd-HH-mm-ss");
+    QString logFileName = logsDir + "/" + timestamp + ".log";
+    
+    // 创建日志文件
+    logFile = new QFile(logFileName);
+    if (logFile->open(QIODevice::WriteOnly | QIODevice::Text | QIODevice::Append)) {
+        logStream = new QTextStream(logFile);
+        logStream->setCodec("UTF-8");
+        
+        // 写入文件头
+        *logStream << "========================================\n";
+        *logStream << "40+成绩发布系统 - 日志文件\n";
+        *logStream << "启动时间: " << QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss") << "\n";
+        *logStream << "日志文件: " << logFileName << "\n";
+        *logStream << "========================================\n";
+        logStream->flush();
+        
+        qDebug() << "日志文件已创建:" << logFileName;
+    } else {
+        qDebug() << "无法创建日志文件:" << logFileName;
+        delete logFile;
+        logFile = nullptr;
+    }
 }
 
 void MainWindow::setupUI()
@@ -319,6 +377,7 @@ void MainWindow::addLog(const QString &message, const QString &logType)
 {
     QString color;
     QString prefix = "";
+    QString timestamp = QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss");
     
     if (logType == "time") {
         color = "#569cd6";
@@ -333,7 +392,7 @@ void MainWindow::addLog(const QString &message, const QString &logType)
     }
     
     if (logType == "time") {
-        prefix = "[" + QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss") + "] ";
+        prefix = "[" + timestamp + "] ";
     }
     
     QString html = QString("<div style='color: %1; margin-bottom: 4px; word-wrap: break-word;'>%2%3</div>")
@@ -346,6 +405,18 @@ void MainWindow::addLog(const QString &message, const QString &logType)
     // 自动滚动到底部
     QScrollBar *scrollBar = logArea->verticalScrollBar();
     scrollBar->setValue(scrollBar->maximum());
+    
+    // 同时写入日志文件
+    if (logStream) {
+        QString logText;
+        if (logType == "time") {
+            logText = prefix + message;
+        } else {
+            logText = "[" + timestamp + "] [" + logType.toUpper() + "] " + message;
+        }
+        *logStream << logText << "\n";
+        logStream->flush(); // 立即刷新到文件
+    }
 }
 
 void MainWindow::updateUIState(bool running)

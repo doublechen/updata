@@ -3,6 +3,10 @@ build/
 build-*/
 release/
 
+# 日志目录
+logs/
+*.log
+
 # CMake生成文件
 CMakeCache.txt
 CMakeFiles/
