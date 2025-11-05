@@ -89,32 +89,9 @@ jobs:
           } else {
             Write-Host "ImageMagick 未安装，尝试使用备选方案..." -ForegroundColor Yellow
             
-            # 使用 Python PIL/Pillow 转换（GitHub Actions 有 Python）
-            $pythonScript = @"
-from PIL import Image
-import sys
-
-try:
-    img = Image.open('icon-1024x1024.png')
-    # 创建多个尺寸的图标
-    icon_sizes = [(256, 256), (128, 128), (64, 64), (48, 48), (32, 32), (16, 16)]
-    img.save('app_icon.ico', format='ICO', sizes=icon_sizes)
-    print('✓ 图标转换成功')
-    sys.exit(0)
-except Exception as e:
-    print(f'✗ 图标转换失败: {e}')
-    # 创建一个简单的占位符
-    img = Image.new('RGB', (256, 256), color='#2d9d88')
-    img.save('app_icon.ico', format='ICO', sizes=[(256, 256), (128, 128), (64, 64), (48, 48), (32, 32), (16, 16)])
-    print('✓ 已创建占位符图标')
-    sys.exit(0)
-"@
-            
-            # 安装 Pillow 并转换
             pip install Pillow --quiet
-            $pythonScript | Out-File -FilePath "convert_icon.py" -Encoding UTF8
-            python convert_icon.py
-            Remove-Item "convert_icon.py" -Force
+            python -c "from PIL import Image; img = Image.open('icon-1024x1024.png'); img.save('app_icon.ico', format='ICO', sizes=[(256,256),(128,128),(64,64),(48,48),(32,32),(16,16)])"
+            Write-Host "✓ 图标转换完成" -ForegroundColor Green
           }
           
           # 验证 ICO 文件是否创建
