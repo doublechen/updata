@@ -125,7 +125,7 @@ void MainWindow::setupUI()
     txtInterval->setText("60");
     
     // API Key输入
-    labelApiKey = new QLabel("调用key");
+    labelApiKey = new QLabel("赛事ID");
     txtApiKey = new QLineEdit();
     txtApiKey->setPlaceholderText("请输入调用key");
     
@@ -139,7 +139,12 @@ void MainWindow::setupUI()
     
     // 按钮区域
     btnStart = new QPushButton("开始执行");
+    btnStart->setObjectName("btnStart");
+    btnStart->setMinimumHeight(50);
+    
     btnStop = new QPushButton("取消执行");
+    btnStop->setObjectName("btnStop");
+    btnStop->setMinimumHeight(50);
     
     connect(btnStart, &QPushButton::clicked, this, &MainWindow::onStartClicked);
     connect(btnStop, &QPushButton::clicked, this, &MainWindow::onStopClicked);
@@ -179,6 +184,8 @@ void MainWindow::setupStyles()
     QString styleSheet = R"(
         QMainWindow {
             background-color: #f8f9fa;
+
+            font-family: "Consolas", "Courier New", monospace;
         }
         
         QWidget#leftPanel {
@@ -198,12 +205,15 @@ void MainWindow::setupStyles()
             color: #000000;
             font-size: 18px;
             margin-bottom: 6px;
+            font-family: "Consolas", "Courier New", monospace;
         }
         
         QLineEdit {
             padding: 12px 14px;
             font-size: 18px;
             color: #000000;
+            font-family: "Consolas", "Courier New", monospace;
+            font-weight: 400;
             background-color: #ffffff;
             border: 1px solid #ced4da;
             border-radius: 4px;
@@ -227,57 +237,6 @@ void MainWindow::setupStyles()
             border-color: #ced4da;
         }
         
-        QPushButton {
-            padding: 14px 24px;
-            font-size: 18px;
-            font-weight: 600;
-            border-radius: 6px;
-        }
-        
-        QPushButton#btnStart {
-            color: white;
-            background-color: #00c853;
-            border: 2px solid #00c853;
-        }
-        
-        QPushButton#btnStart:hover {
-            background-color: #00b248;
-            border: 2px solid #009624;
-        }
-        
-        QPushButton#btnStart:pressed {
-            background-color: #009624;
-            border: 2px solid #008018;
-        }
-        
-        QPushButton#btnStart:disabled {
-            background-color: #9e9e9e;
-            border: 2px solid #9e9e9e;
-            color: #e0e0e0;
-        }
-        
-        QPushButton#btnStop {
-            color: white;
-            background-color: #ff1744;
-            border: 2px solid #ff1744;
-        }
-        
-        QPushButton#btnStop:hover {
-            background-color: #f50057;
-            border: 2px solid #e91e63;
-        }
-        
-        QPushButton#btnStop:pressed {
-            background-color: #e91e63;
-            border: 2px solid #c2185b;
-        }
-        
-        QPushButton#btnStop:disabled {
-            background-color: #9e9e9e;
-            border: 2px solid #9e9e9e;
-            color: #e0e0e0;
-        }
-        
         QTextEdit#logArea {
             background-color: #1e1e1e;
             color: #d4d4d4;
@@ -290,13 +249,68 @@ void MainWindow::setupStyles()
         }
     )";
     
-    setStyleSheet(styleSheet);
-    
-    // 设置按钮ID以便样式表生效
-    btnStart->setObjectName("btnStart");
-    btnStop->setObjectName("btnStop");
+    // 设置其他组件的 objectName
     logArea->setObjectName("logArea");
     leftPanel->setObjectName("leftPanel");
+    
+    // 应用主窗口样式表
+    setStyleSheet(styleSheet);
+    
+    // 直接在按钮上设置样式（更可靠的方法）
+    QString btnStartStyle = R"(
+        QPushButton {
+            color: white;
+            background-color: #00c853;
+            border: 2px solid #00c853;
+            padding: 14px 24px;
+            font-size: 18px;
+            font-weight: 600;
+            border-radius: 6px;
+
+            font-family: "Consolas", "Courier New", monospace;
+        }
+        QPushButton:hover {
+            background-color: #00b248;
+            border: 2px solid #009624;
+        }
+        QPushButton:pressed {
+            background-color: #009624;
+            border: 2px solid #008018;
+        }
+        QPushButton:disabled {
+            background-color: #9e9e9e;
+            border: 2px solid #9e9e9e;
+            color: #e0e0e0;
+        }
+    )";
+    
+    QString btnStopStyle = R"(
+        QPushButton {
+            color: white;
+            background-color: #ff1744;
+            border: 2px solid #ff1744;
+            padding: 14px 24px;
+            font-size: 18px;
+            font-weight: 600;
+            border-radius: 6px;
+        }
+        QPushButton:hover {
+            background-color: #f50057;
+            border: 2px solid #e91e63;
+        }
+        QPushButton:pressed {
+            background-color: #e91e63;
+            border: 2px solid #c2185b;
+        }
+        QPushButton:disabled {
+            background-color: #9e9e9e;
+            border: 2px solid #9e9e9e;
+            color: #e0e0e0;
+        }
+    )";
+    
+    btnStart->setStyleSheet(btnStartStyle);
+    btnStop->setStyleSheet(btnStopStyle);
 }
 
 void MainWindow::addLog(const QString &message, const QString &logType)
@@ -381,7 +395,7 @@ void MainWindow::onStartClicked()
     addLog("开始执行数据获取和上传任务", "info");
     addLog("HTTP地址: " + httpAddress, "info");
     addLog("间隔时间: " + QString::number(intervalTime) + " 秒", "info");
-    addLog("上传接口: " + uploadUrl, "info");
+    // addLog("上传接口: " + uploadUrl, "info");
     addLog("========================================", "info");
     
     executeTask();
@@ -570,14 +584,14 @@ void MainWindow::onRawInfoFinished()
         QString encoding = detectEncoding(data);
         rawInfoData = convertToUtf8(data, encoding);
         
-        addLog("成功获取数据（" + encoding + "解码），数据长度: " + QString::number(rawInfoData.length()) + " 字符", "success");
+        // addLog("成功获取数据（" + encoding + "解码），数据长度: " + QString::number(rawInfoData.length()) + " 字符", "success");
         rawInfoSuccess = true;
         
         if (encoding != "UTF-8") {
-            addLog("检测到源服务器使用" + encoding + "编码，已转换为UTF-8", "info");
+            // addLog("检测到源服务器使用" + encoding + "编码，已转换为UTF-8", "info");
         }
     } else {
-        addLog("获取rawinfo数据失败: " + rawInfoReply->errorString(), "error");
+        addLog("获取赛程数据失败: " + rawInfoReply->errorString(), "error");
         rawInfoSuccess = false;
     }
     
@@ -605,14 +619,14 @@ void MainWindow::onAllPlayFinished()
         QString encoding = detectEncoding(data);
         allPlayData = convertToUtf8(data, encoding);
         
-        addLog("成功获取数据（" + encoding + "解码），数据长度: " + QString::number(allPlayData.length()) + " 字符", "success");
+        // addLog("成功获取数据（" + encoding + "解码），数据长度: " + QString::number(allPlayData.length()) + " 字符", "success");
         allPlaySuccess = true;
         
         if (encoding != "UTF-8") {
-            addLog("检测到源服务器使用" + encoding + "编码，已转换为UTF-8", "info");
+            // addLog("检测到源服务器使用" + encoding + "编码，已转换为UTF-8", "info");
         }
     } else {
-        addLog("获取allplay数据失败: " + allPlayReply->errorString(), "error");
+        addLog("获取比赛数据失败: " + allPlayReply->errorString(), "error");
         allPlaySuccess = false;
     }
     
@@ -640,14 +654,14 @@ void MainWindow::onInquiryFinished()
         QString encoding = detectEncoding(data);
         inquiryData = convertToUtf8(data, encoding);
         
-        addLog("成功获取数据（" + encoding + "解码），数据长度: " + QString::number(inquiryData.length()) + " 字符", "success");
+        // addLog("成功获取数据（" + encoding + "解码），数据长度: " + QString::number(inquiryData.length()) + " 字符", "success");
         inquirySuccess = true;
         
         if (encoding != "UTF-8") {
-            addLog("检测到源服务器使用" + encoding + "编码，已转换为UTF-8", "info");
+            // addLog("检测到源服务器使用" + encoding + "编码，已转换为UTF-8", "info");
         }
     } else {
-        addLog("获取InquiryPage数据失败: " + inquiryReply->errorString(), "error");
+        addLog("获取比赛数据失败: " + inquiryReply->errorString(), "error");
         inquirySuccess = false;
     }
     
@@ -663,10 +677,10 @@ void MainWindow::onInquiryFinished()
 void MainWindow::checkDataAndUpload()
 {
     if (rawInfoSuccess && allPlaySuccess && inquirySuccess) {
-        addLog("所有接口数据获取成功，准备上传", "success");
+        addLog("数据获取成功，准备上传", "success");
         uploadData();
     } else {
-        addLog("部分接口数据获取失败，跳过本次上传", "warning");
+        addLog("数据获取失败，跳过本次上传", "warning");
         scheduleNextTask();
     }
 }
