@@ -24,23 +24,34 @@ if not exist "%RELEASE_DIR%\DataUploadTool.exe" (
     exit /b 1
 )
 
-REM 方法1: 尝试从 Qt 目录复制
+REM 方法1: 优先从项目 dll 目录复制（最可靠）
+if exist "dll\libcrypto-1_1.dll" if exist "dll\libssl-1_1.dll" (
+    copy "dll\libcrypto-1_1.dll" "%RELEASE_DIR%\" /Y >nul
+    copy "dll\libssl-1_1.dll" "%RELEASE_DIR%\" /Y >nul
+    echo 已从项目 dll 目录复制 OpenSSL DLL
+    echo   - libcrypto-1_1.dll
+    echo   - libssl-1_1.dll
+    goto :success
+)
+
+REM 方法2: 尝试从 Qt 目录复制
 if defined Qt5_DIR (
     set QT_BIN=%Qt5_DIR%\bin
     echo 查找 Qt 目录: %QT_BIN%
     
     if exist "%QT_BIN%\libcrypto-1_1.dll" (
         copy "%QT_BIN%\libcrypto-1_1.dll" "%RELEASE_DIR%\" /Y >nul
-        echo 已复制: libcrypto-1_1.dll
+        echo 已从 Qt 目录复制: libcrypto-1_1.dll
     )
     
     if exist "%QT_BIN%\libssl-1_1.dll" (
         copy "%QT_BIN%\libssl-1_1.dll" "%RELEASE_DIR%\" /Y >nul
-        echo 已复制: libssl-1_1.dll
+        echo 已从 Qt 目录复制: libssl-1_1.dll
     )
 )
 
 REM 检查是否已复制成功
+:success
 if exist "%RELEASE_DIR%\libcrypto-1_1.dll" if exist "%RELEASE_DIR%\libssl-1_1.dll" (
     echo.
     echo ========================================
