@@ -6,6 +6,7 @@
 #include <QTextCodec>
 #else
 #include <QStringDecoder>
+#include <QStringConverter>
 #endif
 #include <QUrlQuery>
 #include <QHttpMultiPart>
@@ -135,15 +136,28 @@ void MainWindow::initializeLogFile()
     logFile = new QFile(logFileName);
     if (logFile->open(QIODevice::WriteOnly | QIODevice::Text)) {
         logStream = new QTextStream(logFile);
-        logStream->setCodec("UTF-8");
+#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
+        // Qt5: 使用QTextCodec设置UTF-8编码
+        QTextCodec *codec = QTextCodec::codecForName("UTF-8");
+        if (codec) {
+            logStream->setCodec(codec);
+        }
         logStream->setGenerateByteOrderMark(true);  // 添加 UTF-8 BOM，让 Windows 记事本正确识别
+#else
+        // Qt6: 使用setEncoding
+        logStream->setEncoding(QStringConverter::Utf8);
+        logStream->setGenerateByteOrderMark(true);  // 添加 UTF-8 BOM，让 Windows 记事本正确识别
+#endif
         
-        // 写入文件头
-        *logStream << "========================================\n";
-        *logStream << "40+成绩发布系统 - 日志文件\n";
-        *logStream << "启动时间: " << QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss") << "\n";
-        *logStream << "日志文件: " << logFileName << "\n";
-        *logStream << "========================================\n";
+        // 写入文件头 - 确保使用UTF-8编码
+        QString header = QString::fromUtf8("========================================\n"
+                                           "40+成绩发布系统 - 日志文件\n"
+                                           "启动时间: %1\n"
+                                           "日志文件: %2\n"
+                                           "========================================\n")
+                        .arg(QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss"))
+                        .arg(logFileName);
+        *logStream << header;
         logStream->flush();
         
         qDebug() << "日志文件已创建:" << logFileName;
@@ -233,7 +247,7 @@ void MainWindow::setupUI()
     // API Key输入
     labelApiKey = new QLabel("赛事ID");
     txtApiKey = new QLineEdit();
-    txtApiKey->setPlaceholderText("请输入调用key");
+    txtApiKey->setPlaceholderText("请输入赛事ID");
     
     // 添加到布局
     inputLayout->addWidget(labelHttpAddress, 0, 0);
@@ -493,7 +507,7 @@ bool MainWindow::validateInputs()
     }
     
     if (apiKey.isEmpty()) {
-        addLog("错误: 请输入调用key", "error");
+        addLog("错误: 请输入赛事ID", "error");
         return false;
     }
     
@@ -532,8 +546,8 @@ void MainWindow::onStartClicked()
     
     // 检查key的合法性
     if (!checkKey(apiKey)) {
-        addLog("错误: 调用key格式不正确或验证失败", "error");
-        QMessageBox::warning(this, "验证失败", "调用key格式不正确或验证失败，请检查后重试。");
+        addLog("错误: 赛事ID格式不正确或验证失败", "error");
+        QMessageBox::warning(this, "验证失败", "赛事ID格式不正确或验证失败，请检查后重试。");
         return;
     }
     
