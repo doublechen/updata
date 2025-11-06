@@ -797,7 +797,7 @@ void MainWindow::onRawInfoFinished()
     rawInfoReply = nullptr;
     
     pendingRequests--;
-    addLog(QString("rawInfo完成，剩余请求: %1").arg(pendingRequests), "info");
+    // addLog(QString("rawInfo完成，剩余请求: %1").arg(pendingRequests), "info");
     if (pendingRequests == 0) {
         // 三个主要接口都获取完成后，处理allPlayData
         processAllPlayData();
@@ -842,7 +842,7 @@ void MainWindow::onAllPlayFinished()
     allPlayReply = nullptr;
     
     pendingRequests--;
-    addLog(QString("allPlay完成，剩余请求: %1").arg(pendingRequests), "info");
+    // addLog(QString("allPlay完成，剩余请求: %1").arg(pendingRequests), "info");
     if (pendingRequests == 0) {
         // 三个主要接口都获取完成后，处理allPlayData
         processAllPlayData();
@@ -882,7 +882,7 @@ void MainWindow::onInquiryFinished()
     inquiryReply = nullptr;
     
     pendingRequests--;
-    addLog(QString("inquiry完成，剩余请求: %1").arg(pendingRequests), "info");
+    // addLog(QString("inquiry完成，剩余请求: %1").arg(pendingRequests), "info");
     if (pendingRequests == 0) {
         // 三个主要接口都获取完成后，处理allPlayData
         processAllPlayData();
@@ -916,9 +916,9 @@ void MainWindow::uploadData()
     
     // 输出统计信息
     addLog(QString("数据量统计:"), "info");
-    addLog(QString("  - rawinfo: %1 KB").arg(rawInfoKB, 0, 'f', 2), "info");
-    addLog(QString("  - allplay: %1 KB").arg(allPlayKB, 0, 'f', 2), "info");
-    addLog(QString("  - inquiry: %1 KB").arg(inquiryKB, 0, 'f', 2), "info");
+    // addLog(QString("  - rawinfo: %1 KB").arg(rawInfoKB, 0, 'f', 2), "info");
+    // addLog(QString("  - allplay: %1 KB").arg(allPlayKB, 0, 'f', 2), "info");
+    // addLog(QString("  - inquiry: %1 KB").arg(inquiryKB, 0, 'f', 2), "info");
     addLog(QString("  - 总计: %1 KB").arg(totalKB, 0, 'f', 2), "success");
     
     // 生成multipart边界
@@ -1052,11 +1052,11 @@ void MainWindow::executeTask()
 
 void MainWindow::processAllPlayData()
 {
-    addLog("=== 开始处理allplay数据 ===", "info");
+    // addLog("=== 开始处理allplay数据 ===", "info");
     
     // 如果allplay数据获取失败，直接进入检查和上传流程
     if (!allPlaySuccess) {
-        addLog("allplay数据获取失败，跳过处理", "warning");
+        // addLog("allplay数据获取失败，跳过处理", "warning");
         checkDataAndUpload();
         return;
     }
@@ -1066,7 +1066,7 @@ void MainWindow::processAllPlayData()
     allPlayJson = QJsonDocument::fromJson(allPlayData.toUtf8(), &parseError);
     
     if (parseError.error != QJsonParseError::NoError || !allPlayJson.isObject()) {
-        addLog("解析allplay数据失败: " + parseError.errorString(), "error");
+        // addLog("解析allplay数据失败: " + parseError.errorString(), "error");
         checkDataAndUpload();
         return;
     }
@@ -1110,8 +1110,8 @@ void MainWindow::processAllPlayData()
     }
     
     // 输出统计信息
-    addLog(QString("比赛统计: 总计 %1 场，已完成 %2 场，待更新 %3 场")
-           .arg(totalPlays).arg(completedPlays).arg(pendingPlays), "info");
+    // addLog(QString("比赛统计: 总计 %1 场，已完成 %2 场，待更新 %3 场")
+    //        .arg(totalPlays).arg(completedPlays).arg(pendingPlays), "info");
     
     totalOnePlayRequests = onePlayQueue.size();
     
@@ -1122,7 +1122,7 @@ void MainWindow::processAllPlayData()
         return;
     }
     
-    addLog("发现 " + QString::number(totalOnePlayRequests) + " 场比赛需要更新详细数据（顺序执行）", "info");
+    // addLog("发现 " + QString::number(totalOnePlayRequests) + " 场比赛需要更新详细数据（顺序执行）", "info");
     
     // 开始处理队列中的第一个请求
     fetchOnePlayData();
@@ -1166,10 +1166,10 @@ void MainWindow::fetchOnePlayData()
     connect(currentOnePlayReply, &QNetworkReply::finished, this, &MainWindow::onOnePlayFinished);
     
     // 显示进度
-    addLog(QString("正在请求比赛详细数据 (%1/%2) PID: %3")
-           .arg(completedOnePlayRequests + 1)
-           .arg(totalOnePlayRequests)
-           .arg(req.pid), "info");
+    // addLog(QString("正在请求比赛详细数据 (%1/%2) PID: %3")
+    //        .arg(completedOnePlayRequests + 1)
+    //        .arg(totalOnePlayRequests)
+    //        .arg(req.pid), "info");
 }
 
 void MainWindow::onOnePlayFinished()
@@ -1195,7 +1195,7 @@ void MainWindow::onOnePlayFinished()
         if (scoreData.length() > 200) {
             debugData += "...";
         }
-        addLog(QString("PID: %1 原始数据: %2").arg(pid).arg(debugData), "info");
+        // addLog(QString("PID: %1 原始数据: %2").arg(pid).arg(debugData), "info");
         
         // 清理JSON数据 - 替换可能导致解析失败的模式
         // 替换 :, 为 :"",
@@ -1257,29 +1257,29 @@ void MainWindow::onOnePlayFinished()
                     allPlayObj["match"] = matchArray;
                     allPlayJson.setObject(allPlayObj);
                     
-                    addLog(QString("成功更新比赛数据 (%1/%2) PID: %3")
-                           .arg(completedOnePlayRequests + 1)
-                           .arg(totalOnePlayRequests)
-                           .arg(pid), "success");
+                    // addLog(QString("成功更新比赛数据 (%1/%2) PID: %3")
+                    //        .arg(completedOnePlayRequests + 1)
+                    //        .arg(totalOnePlayRequests)
+                    //        .arg(pid), "success");
                 }
             }
         } else {
             // 显示详细的解析错误信息
-            QString errorMsg = QString("解析比赛数据失败 PID: %1 - %2 (位置: %3)")
-                              .arg(pid)
-                              .arg(parseError.errorString())
-                              .arg(parseError.offset);
-            addLog(errorMsg, "warning");
+            // QString errorMsg = QString("解析比赛数据失败 PID: %1 - %2 (位置: %3)")
+            //                   .arg(pid)
+            //                   .arg(parseError.errorString())
+            //                   .arg(parseError.offset);
+            // addLog(errorMsg, "warning");
             
             // 显示错误位置附近的数据
             int offset = parseError.offset;
             int start = qMax(0, offset - 50);
             int length = qMin(100, scoreData.length() - start);
             QString context = scoreData.mid(start, length);
-            addLog(QString("错误位置附近的数据: ...%1...").arg(context), "warning");
+            // addLog(QString("错误位置附近的数据: ...%1...").arg(context), "warning");
         }
     } else {
-        addLog(QString("获取比赛数据失败 PID: %1 - %2").arg(pid).arg(reply->errorString()), "warning");
+        // addLog(QString("获取比赛数据失败 PID: %1 - %2").arg(pid).arg(reply->errorString()), "warning");
     }
     
     // 清理当前请求
@@ -1291,7 +1291,7 @@ void MainWindow::onOnePlayFinished()
     
     // 检查是否所有请求都完成
     if (completedOnePlayRequests >= totalOnePlayRequests) {
-        addLog("所有比赛详细数据已处理完成", "success");
+        // addLog("所有比赛详细数据已处理完成", "success");
         
         // 将更新后的JSON转回字符串
         allPlayData = QString::fromUtf8(allPlayJson.toJson(QJsonDocument::Compact));
