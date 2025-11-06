@@ -820,8 +820,10 @@ void MainWindow::onAllPlayFinished()
         QString encoding = detectEncoding(data);
         allPlayData = convertToUtf8(data, encoding);
         
-        // 替换 :, 为 :"",
-        allPlayData.replace(":,", ":\"\",");
+        // 清理JSON数据 - 替换可能导致解析失败的模式
+        allPlayData.replace(":,", ":\"\",");   // 替换 :, 为 :"",
+        allPlayData.replace(":}", ":\"\"}");   // 替换 :} 为 :""}
+        allPlayData.replace(":]", ":\"\"]");   // 替换 :] 为 :""]
         
         // addLog("成功获取数据（" + encoding + "解码），数据长度: " + QString::number(allPlayData.length()) + " 字符", "success");
         allPlaySuccess = true;
@@ -1143,8 +1145,20 @@ void MainWindow::onOnePlayFinished()
         QString encoding = detectEncoding(data);
         QString scoreData = convertToUtf8(data, encoding);
         
+        // 输出原始数据用于调试（限制长度避免日志过长）
+        QString debugData = scoreData.left(200);
+        if (scoreData.length() > 200) {
+            debugData += "...";
+        }
+        addLog(QString("PID: %1 原始数据: %2").arg(pid).arg(debugData), "info");
+        
+        // 清理JSON数据 - 替换可能导致解析失败的模式
         // 替换 :, 为 :"",
         scoreData.replace(":,", ":\"\",");
+        // 替换 :} 为 :""} (对象末尾的空值)
+        scoreData.replace(":}", ":\"\"}");
+        // 替换 :] 为 :""] (数组末尾的空值)
+        scoreData.replace(":]", ":\"\"]");
         
         // 解析JSON
         QJsonParseError parseError;
@@ -1205,7 +1219,19 @@ void MainWindow::onOnePlayFinished()
                 }
             }
         } else {
-            addLog(QString("解析比赛数据失败 PID: %1 - %2").arg(pid).arg(parseError.errorString()), "warning");
+            // 显示详细的解析错误信息
+            QString errorMsg = QString("解析比赛数据失败 PID: %1 - %2 (位置: %3)")
+                              .arg(pid)
+                              .arg(parseError.errorString())
+                              .arg(parseError.offset);
+            addLog(errorMsg, "warning");
+            
+            // 显示错误位置附近的数据
+            int offset = parseError.offset;
+            int start = qMax(0, offset - 50);
+            int length = qMin(100, scoreData.length() - start);
+            QString context = scoreData.mid(start, length);
+            addLog(QString("错误位置附近的数据: ...%1...").arg(context), "warning");
         }
     } else {
         addLog(QString("获取比赛数据失败 PID: %1 - %2").arg(pid).arg(reply->errorString()), "warning");
