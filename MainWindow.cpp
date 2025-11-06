@@ -42,6 +42,9 @@ MainWindow::MainWindow(QWidget *parent)
     , inquiryTimer(nullptr)
     , uploadTimer(nullptr)
     , pendingRequests(0)
+    , currentOnePlayReply(nullptr)
+    , totalOnePlayRequests(0)
+    , completedOnePlayRequests(0)
     , logFile(nullptr)
     , logStream(nullptr)
 {
@@ -597,6 +600,16 @@ void MainWindow::onStopClicked()
         uploadReply = nullptr;
     }
     
+    // 取消当前的oneplay请求并清空队列
+    if (currentOnePlayReply) {
+        currentOnePlayReply->abort();
+        currentOnePlayReply->deleteLater();
+        currentOnePlayReply = nullptr;
+    }
+    onePlayQueue.clear();
+    totalOnePlayRequests = 0;
+    completedOnePlayRequests = 0;
+    
     taskTimer->stop();
     
     updateUIState(false);
@@ -807,6 +820,9 @@ void MainWindow::onAllPlayFinished()
         QString encoding = detectEncoding(data);
         allPlayData = convertToUtf8(data, encoding);
         
+        // 替换 :, 为 :"",
+        allPlayData.replace(":,", ":\"\",");
+        
         // addLog("成功获取数据（" + encoding + "解码），数据长度: " + QString::number(allPlayData.length()) + " 字符", "success");
         allPlaySuccess = true;
         
@@ -823,7 +839,8 @@ void MainWindow::onAllPlayFinished()
     
     pendingRequests--;
     if (pendingRequests == 0) {
-        checkDataAndUpload();
+        // 三个主要接口都获取完成后，处理allPlayData
+        processAllPlayData();
     }
 }
 
@@ -1005,5 +1022,206 @@ void MainWindow::executeTask()
     addLog("第 " + QString::number(loopCount) + " 次执行", "time");
     
     fetchData();
+}
+
+void MainWindow::processAllPlayData()
+{
+    // 如果allplay数据获取失败，直接进入检查和上传流程
+    if (!allPlaySuccess) {
+        checkDataAndUpload();
+        return;
+    }
+    
+    // 解析allPlayData为JSON
+    QJsonParseError parseError;
+    allPlayJson = QJsonDocument::fromJson(allPlayData.toUtf8(), &parseError);
+    
+    if (parseError.error != QJsonParseError::NoError || !allPlayJson.isObject()) {
+        addLog("解析allplay数据失败: " + parseError.errorString(), "error");
+        checkDataAndUpload();
+        return;
+    }
+    
+    QJsonObject allPlayObj = allPlayJson.object();
+    QJsonArray matchArray = allPlayObj.value("match").toArray();
+    
+    // 清空队列
+    onePlayQueue.clear();
+    totalOnePlayRequests = 0;
+    completedOnePlayRequests = 0;
+    
+    // 遍历所有match和play，构建请求队列
+    for (int matchIdx = 0; matchIdx < matchArray.size(); ++matchIdx) {
+        QJsonObject matchObj = matchArray[matchIdx].toObject();
+        QJsonArray playArray = matchObj.value("play").toArray();
+        
+        for (int playIdx = 0; playIdx < playArray.size(); ++playIdx) {
+            QJsonObject playObj = playArray[playIdx].toObject();
+            int state = playObj.value("state").toInt();
+            
+            // 如果state == 3，需要请求oneplay接口
+            if (state == 3) {
+                QString pid = playObj.value("pid").toString();
+                OnePlayRequest req;
+                req.matchIndex = matchIdx;
+                req.playIndex = playIdx;
+                req.pid = pid;
+                onePlayQueue.append(req);
+            }
+        }
+    }
+    
+    totalOnePlayRequests = onePlayQueue.size();
+    
+    // 如果没有需要请求的play，直接进入上传流程
+    if (totalOnePlayRequests == 0) {
+        addLog("没有需要更新的比赛数据", "info");
+        checkDataAndUpload();
+        return;
+    }
+    
+    addLog("发现 " + QString::number(totalOnePlayRequests) + " 场比赛需要更新详细数据（顺序执行）", "info");
+    
+    // 开始处理队列中的第一个请求
+    fetchOnePlayData();
+}
+
+void MainWindow::fetchOnePlayData()
+{
+    // 如果队列为空，说明所有请求都已完成
+    if (onePlayQueue.isEmpty()) {
+        return;
+    }
+    
+    // 如果已经有正在进行的请求，不要重复发送
+    if (currentOnePlayReply && currentOnePlayReply->isRunning()) {
+        return;
+    }
+    
+    // 从队列头部取出一个请求
+    OnePlayRequest req = onePlayQueue.takeFirst();
+    
+    // 构建请求URL
+    QUrl onePlayUrl(httpAddress + "/oneplay?pid=" + req.pid);
+    QNetworkRequest request(onePlayUrl);
+    request.setRawHeader("User-Agent", "DataUploadTool/1.0");
+    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/x-www-form-urlencoded");
+    
+    // 发送POST请求
+    currentOnePlayReply = networkManager->post(request, QByteArray());
+    
+    // 将 matchIndex 和 playIndex 存储为 reply 的动态属性
+    currentOnePlayReply->setProperty("matchIndex", req.matchIndex);
+    currentOnePlayReply->setProperty("playIndex", req.playIndex);
+    currentOnePlayReply->setProperty("pid", req.pid);
+    
+    // 连接完成信号
+    connect(currentOnePlayReply, &QNetworkReply::finished, this, &MainWindow::onOnePlayFinished);
+    
+    // 显示进度
+    addLog(QString("正在请求比赛详细数据 (%1/%2) PID: %3")
+           .arg(completedOnePlayRequests + 1)
+           .arg(totalOnePlayRequests)
+           .arg(req.pid), "info");
+}
+
+void MainWindow::onOnePlayFinished()
+{
+    QNetworkReply *reply = qobject_cast<QNetworkReply*>(sender());
+    if (!reply) {
+        return;
+    }
+    
+    // 从动态属性中获取索引
+    int matchIdx = reply->property("matchIndex").toInt();
+    int playIdx = reply->property("playIndex").toInt();
+    QString pid = reply->property("pid").toString();
+    
+    // 处理响应
+    if (reply->error() == QNetworkReply::NoError) {
+        QByteArray data = reply->readAll();
+        QString encoding = detectEncoding(data);
+        QString scoreData = convertToUtf8(data, encoding);
+        
+        // 替换 :, 为 :"",
+        scoreData.replace(":,", ":\"\",");
+        
+        // 解析JSON
+        QJsonParseError parseError;
+        QJsonDocument scoreDoc = QJsonDocument::fromJson(scoreData.toUtf8(), &parseError);
+        
+        if (parseError.error == QJsonParseError::NoError && scoreDoc.isObject()) {
+            QJsonObject scoreObj = scoreDoc.object();
+            QJsonObject scorePlayObj = scoreObj.value("play").toObject();
+            
+            // 更新allPlayJson中的数据
+            QJsonObject allPlayObj = allPlayJson.object();
+            QJsonArray matchArray = allPlayObj.value("match").toArray();
+            
+            if (matchIdx >= 0 && matchIdx < matchArray.size()) {
+                QJsonObject matchObj = matchArray[matchIdx].toObject();
+                QJsonArray playArray = matchObj.value("play").toArray();
+                
+                if (playIdx >= 0 && playIdx < playArray.size()) {
+                    QJsonObject playObj = playArray[playIdx].toObject();
+                    
+                    // 更新score字段
+                    if (scorePlayObj.contains("score") && !scorePlayObj.value("score").isNull()) {
+                        QJsonValue scoreValue = scorePlayObj.value("score");
+                        // 将score转为JSON字符串存储
+                        QJsonDocument scoreSubDoc(scoreValue.isObject() ? scoreValue.toObject() : 
+                                                   scoreValue.isArray() ? QJsonDocument(scoreValue.toArray()) : QJsonDocument());
+                        playObj["score"] = QString::fromUtf8(scoreSubDoc.toJson(QJsonDocument::Compact));
+                    }
+                    
+                    // 更新member字段
+                    if (scorePlayObj.contains("member") && !scorePlayObj.value("member").isNull()) {
+                        QJsonValue memberValue = scorePlayObj.value("member");
+                        // 将member转为JSON字符串存储
+                        QJsonDocument memberSubDoc(memberValue.isObject() ? memberValue.toObject() : 
+                                                    memberValue.isArray() ? QJsonDocument(memberValue.toArray()) : QJsonDocument());
+                        playObj["member"] = QString::fromUtf8(memberSubDoc.toJson(QJsonDocument::Compact));
+                    }
+                    
+                    // 更新回数组
+                    playArray[playIdx] = playObj;
+                    matchObj["play"] = playArray;
+                    matchArray[matchIdx] = matchObj;
+                    allPlayObj["match"] = matchArray;
+                    allPlayJson.setObject(allPlayObj);
+                    
+                    addLog(QString("成功更新比赛数据 (%1/%2) PID: %3")
+                           .arg(completedOnePlayRequests + 1)
+                           .arg(totalOnePlayRequests)
+                           .arg(pid), "success");
+                }
+            }
+        } else {
+            addLog(QString("解析比赛数据失败 PID: %1 - %2").arg(pid).arg(parseError.errorString()), "warning");
+        }
+    } else {
+        addLog(QString("获取比赛数据失败 PID: %1 - %2").arg(pid).arg(reply->errorString()), "warning");
+    }
+    
+    // 清理当前请求
+    reply->deleteLater();
+    currentOnePlayReply = nullptr;
+    
+    // 计数器增加
+    completedOnePlayRequests++;
+    
+    // 检查是否所有请求都完成
+    if (completedOnePlayRequests >= totalOnePlayRequests) {
+        addLog("所有比赛详细数据已处理完成", "success");
+        
+        // 将更新后的JSON转回字符串
+        allPlayData = QString::fromUtf8(allPlayJson.toJson(QJsonDocument::Compact));
+        
+        // 继续上传流程
+        checkDataAndUpload();
+    } else {
+        // 继续处理队列中的下一个请求
+        fetchOnePlayData();
+    }
 }
 

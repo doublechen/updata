@@ -17,6 +17,7 @@
 #include <QDateTime>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QJsonArray>
 #include <QJsonParseError>
 #include <QFile>
 #include <QTextStream>
@@ -43,6 +44,7 @@ private slots:
     void onAllPlayFinished();
     void onInquiryFinished();
     void onUploadFinished();
+    void onOnePlayFinished();
     void executeTask();
 
 private:
@@ -59,6 +61,8 @@ private:
     void uploadData();
     void checkDataAndUpload();
     void scheduleNextTask();
+    void processAllPlayData();
+    void fetchOnePlayData();
 
     // UI组件
     QWidget *centralWidget;
@@ -120,6 +124,18 @@ private:
     QTimer *uploadTimer;
     
     int pendingRequests;
+    
+    // oneplay请求相关
+    QJsonDocument allPlayJson;
+    QNetworkReply *currentOnePlayReply;
+    struct OnePlayRequest {
+        int matchIndex;
+        int playIndex;
+        QString pid;
+    };
+    QList<OnePlayRequest> onePlayQueue; // 待处理的请求队列
+    int totalOnePlayRequests; // 总请求数
+    int completedOnePlayRequests; // 已完成的请求数
     
     // 日志文件
     QFile *logFile;
