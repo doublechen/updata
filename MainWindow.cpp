@@ -28,7 +28,7 @@ MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
     , isRunning(false)
     , loopCount(0)
-    , intervalTime(60)
+    , intervalTime(180)
     , uploadUrl("https://tools.40plus.cn/api/updata")
     , rawInfoSuccess(false)
     , allPlaySuccess(false)
@@ -244,8 +244,8 @@ void MainWindow::setupUI()
     // 间隔时间输入
     labelInterval = new QLabel("间隔时间(秒)");
     txtInterval = new QLineEdit();
-    txtInterval->setPlaceholderText("请输入间隔时间");
-    txtInterval->setText("60");
+    txtInterval->setPlaceholderText("请输入间隔时间（最小180秒）");
+    txtInterval->setText("180");
     
     // API Key输入
     labelApiKey = new QLabel("赛事ID");
@@ -509,6 +509,11 @@ bool MainWindow::validateInputs()
         return false;
     }
     
+    if (intervalTime < 180) {
+        addLog("错误: 间隔时间不得低于180秒", "error");
+        return false;
+    }
+    
     if (apiKey.isEmpty()) {
         addLog("错误: 请输入赛事ID", "error");
         return false;
@@ -766,11 +771,11 @@ void MainWindow::fetchData()
         
         // 设置超时定时器
         inquiryTimer->start(localTimeout);
-        addLog("首次执行，获取 inquiry 数据", "info");
+        // addLog("首次执行，获取 inquiry 数据", "info");
     } else {
         // 不是第一次，跳过 inquiry，直接标记为成功
         inquirySuccess = true;
-        addLog("使用缓存的 inquiry 数据", "info");
+        // addLog("使用缓存的 inquiry 数据", "info");
     }
 }
 
