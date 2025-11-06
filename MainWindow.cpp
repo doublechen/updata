@@ -797,8 +797,10 @@ void MainWindow::onRawInfoFinished()
     rawInfoReply = nullptr;
     
     pendingRequests--;
+    addLog(QString("rawInfo完成，剩余请求: %1").arg(pendingRequests), "info");
     if (pendingRequests == 0) {
-        checkDataAndUpload();
+        // 三个主要接口都获取完成后，处理allPlayData
+        processAllPlayData();
     }
 }
 
@@ -840,6 +842,7 @@ void MainWindow::onAllPlayFinished()
     allPlayReply = nullptr;
     
     pendingRequests--;
+    addLog(QString("allPlay完成，剩余请求: %1").arg(pendingRequests), "info");
     if (pendingRequests == 0) {
         // 三个主要接口都获取完成后，处理allPlayData
         processAllPlayData();
@@ -879,8 +882,10 @@ void MainWindow::onInquiryFinished()
     inquiryReply = nullptr;
     
     pendingRequests--;
+    addLog(QString("inquiry完成，剩余请求: %1").arg(pendingRequests), "info");
     if (pendingRequests == 0) {
-        checkDataAndUpload();
+        // 三个主要接口都获取完成后，处理allPlayData
+        processAllPlayData();
     }
 }
 
@@ -897,6 +902,25 @@ void MainWindow::checkDataAndUpload()
 
 void MainWindow::uploadData()
 {
+    // 统计数据量大小
+    qint64 rawInfoSize = rawInfoData.trimmed().toUtf8().size();
+    qint64 allPlaySize = allPlayData.trimmed().toUtf8().size();
+    qint64 inquirySize = inquiryData.trimmed().toUtf8().size();
+    qint64 totalSize = rawInfoSize + allPlaySize + inquirySize;
+    
+    // 转换为KB（保留2位小数）
+    double rawInfoKB = rawInfoSize / 1024.0;
+    double allPlayKB = allPlaySize / 1024.0;
+    double inquiryKB = inquirySize / 1024.0;
+    double totalKB = totalSize / 1024.0;
+    
+    // 输出统计信息
+    addLog(QString("数据量统计:"), "info");
+    addLog(QString("  - rawinfo: %1 KB").arg(rawInfoKB, 0, 'f', 2), "info");
+    addLog(QString("  - allplay: %1 KB").arg(allPlayKB, 0, 'f', 2), "info");
+    addLog(QString("  - inquiry: %1 KB").arg(inquiryKB, 0, 'f', 2), "info");
+    addLog(QString("  - 总计: %1 KB").arg(totalKB, 0, 'f', 2), "success");
+    
     // 生成multipart边界
     QString boundary = "----WebKitFormBoundary" + 
                        QDateTime::currentDateTime().toString("yyyyMMddhhmmss") +
@@ -1028,8 +1052,11 @@ void MainWindow::executeTask()
 
 void MainWindow::processAllPlayData()
 {
+    addLog("=== 开始处理allplay数据 ===", "info");
+    
     // 如果allplay数据获取失败，直接进入检查和上传流程
     if (!allPlaySuccess) {
+        addLog("allplay数据获取失败，跳过处理", "warning");
         checkDataAndUpload();
         return;
     }
@@ -1052,6 +1079,11 @@ void MainWindow::processAllPlayData()
     totalOnePlayRequests = 0;
     completedOnePlayRequests = 0;
     
+    // 统计各种状态的比赛数量
+    int totalPlays = 0;
+    int completedPlays = 0;  // state == 3
+    int pendingPlays = 0;    // state != 3
+    
     // 遍历所有match和play，构建请求队列
     for (int matchIdx = 0; matchIdx < matchArray.size(); ++matchIdx) {
         QJsonObject matchObj = matchArray[matchIdx].toObject();
@@ -1060,18 +1092,26 @@ void MainWindow::processAllPlayData()
         for (int playIdx = 0; playIdx < playArray.size(); ++playIdx) {
             QJsonObject playObj = playArray[playIdx].toObject();
             int state = playObj.value("state").toInt();
+            totalPlays++;
             
-            // 如果state == 3，需要请求oneplay接口
+            // 如果state == 3（已完成的比赛），需要请求oneplay接口获取成绩
             if (state == 3) {
+                completedPlays++;
                 QString pid = playObj.value("pid").toString();
                 OnePlayRequest req;
                 req.matchIndex = matchIdx;
                 req.playIndex = playIdx;
                 req.pid = pid;
                 onePlayQueue.append(req);
+            } else {
+                pendingPlays++;
             }
         }
     }
+    
+    // 输出统计信息
+    addLog(QString("比赛统计: 总计 %1 场，已完成 %2 场，待更新 %3 场")
+           .arg(totalPlays).arg(completedPlays).arg(pendingPlays), "info");
     
     totalOnePlayRequests = onePlayQueue.size();
     
