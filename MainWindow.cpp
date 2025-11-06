@@ -18,6 +18,10 @@
 #include <QPixmap>
 #include <QDir>
 #include <QFile>
+#include <QCryptographicHash>
+
+// 定义SECRET_KEY常量（请根据实际情况修改此值）
+const QString MainWindow::SECRET_KEY = "Y+Dh=@!=sJnDnlW3u-aY";
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
@@ -496,9 +500,40 @@ bool MainWindow::validateInputs()
     return true;
 }
 
+bool MainWindow::checkKey(const QString &key)
+{
+    // 按'-'分割key
+    QStringList keylist = key.split('-');
+    
+    // 检查是否正好有2部分
+    if (keylist.size() != 2) {
+        return false;
+    }
+    
+    // 计算 md5(keylist[1] + SECRET_KEY) 的前8个字符
+    QString input = keylist[1] + SECRET_KEY;
+    QByteArray hash = QCryptographicHash::hash(input.toUtf8(), QCryptographicHash::Md5);
+    QString hashHex = hash.toHex().toLower();
+    QString first8Chars = hashHex.left(8);
+    
+    // 检查第一部分是否等于MD5的前8个字符
+    if (keylist[0] == first8Chars) {
+        return true;
+    }
+    
+    return false;
+}
+
 void MainWindow::onStartClicked()
 {
     if (!validateInputs()) {
+        return;
+    }
+    
+    // 检查key的合法性
+    if (!checkKey(apiKey)) {
+        addLog("错误: 调用key格式不正确或验证失败", "error");
+        QMessageBox::warning(this, "验证失败", "调用key格式不正确或验证失败，请检查后重试。");
         return;
     }
     

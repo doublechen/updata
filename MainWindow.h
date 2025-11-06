@@ -21,6 +21,7 @@
 #include <QFile>
 #include <QTextStream>
 #include <QDir>
+#include <QCryptographicHash>
 #if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
 #include <QTextCodec>
 #else
@@ -51,6 +52,7 @@ private:
     void addLog(const QString &message, const QString &logType = "info");
     void updateUIState(bool running);
     bool validateInputs();
+    bool checkKey(const QString &key);
     QString detectEncoding(const QByteArray &data);
     QString convertToUtf8(const QByteArray &data, const QString &sourceEncoding);
     void fetchData();
@@ -122,6 +124,9 @@ private:
     // 日志文件
     QFile *logFile;
     QTextStream *logStream;
+    
+    // 密钥验证常量
+    static const QString SECRET_KEY;
 };
 
 #endif // MAINWINDOW_H
