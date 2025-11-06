@@ -865,7 +865,10 @@ void MainWindow::onInquiryFinished()
     if (inquiryReply->error() == QNetworkReply::NoError) {
         QByteArray data = inquiryReply->readAll();
         QString encoding = detectEncoding(data);
-        inquiryData = convertToUtf8(data, encoding);
+        QString htmlData = convertToUtf8(data, encoding);
+        
+        // 将 HTML 数据转换为 JSON 格式
+        inquiryData = processInquiryHtml(htmlData);
         
         // addLog("成功获取数据（" + encoding + "解码），数据长度: " + QString::number(inquiryData.length()) + " 字符", "success");
         inquirySuccess = true;
@@ -1048,6 +1051,84 @@ void MainWindow::executeTask()
     addLog("第 " + QString::number(loopCount) + " 次执行", "time");
     
     fetchData();
+}
+
+QString MainWindow::processInquiryHtml(const QString &html)
+{
+    // 解析 HTML 表格，提取 pid 和 groupno，构建 map 结构
+    QJsonObject inqueryMap;
+    
+    // 使用正则表达式查找 tbody 中的所有 tr
+    QRegularExpression tbodyRegex("<tbody[^>]*>(.*?)</tbody>", 
+                                  QRegularExpression::DotMatchesEverythingOption | 
+                                  QRegularExpression::CaseInsensitiveOption);
+    QRegularExpressionMatch tbodyMatch = tbodyRegex.match(html);
+    
+    if (!tbodyMatch.hasMatch()) {
+        addLog("数据格式错误", "warning");
+        return "{}";
+    }
+    
+    QString tbodyContent = tbodyMatch.captured(1);
+    
+    // 提取所有的 tr 标签
+    QRegularExpression trRegex("<tr[^>]*>(.*?)</tr>", 
+                               QRegularExpression::DotMatchesEverythingOption | 
+                               QRegularExpression::CaseInsensitiveOption);
+    QRegularExpressionMatchIterator trIterator = trRegex.globalMatch(tbodyContent);
+    
+    int rowCount = 0;
+    int validCount = 0;
+    
+    while (trIterator.hasNext()) {
+        QRegularExpressionMatch trMatch = trIterator.next();
+        QString trContent = trMatch.captured(1);
+        rowCount++;
+        
+        // 提取所有的 td 标签内容
+        QRegularExpression tdRegex("<td[^>]*>(.*?)</td>", 
+                                   QRegularExpression::DotMatchesEverythingOption | 
+                                   QRegularExpression::CaseInsensitiveOption);
+        QRegularExpressionMatchIterator tdIterator = tdRegex.globalMatch(trContent);
+        
+        QStringList tdContents;
+        while (tdIterator.hasNext()) {
+            QRegularExpressionMatch tdMatch = tdIterator.next();
+            QString tdContent = tdMatch.captured(1).trimmed();
+            // 移除 HTML 标签
+            tdContent.remove(QRegularExpression("<[^>]*>"));
+            // 移除前后空白
+            tdContent = tdContent.trimmed();
+            tdContents.append(tdContent);
+        }
+        
+        // 检查是否有足够的列（至少需要 19 列：index 0-18）
+        if (tdContents.size() >= 19) {
+            QString pid = tdContents[1];      // 第 2 列（index 1）
+            QString groupno = tdContents[18]; // 第 19 列（index 18）
+            
+            // 如果 pid 和 groupno 都不为空，添加到 map
+            if (!pid.isEmpty() && !groupno.isEmpty()) {
+                // 尝试将 groupno 转换为整数
+                bool ok;
+                int groupnoInt = groupno.toInt(&ok);
+                if (ok) {
+                    inqueryMap[pid] = groupnoInt;
+                } else {
+                    // 如果无法转换为整数，保持字符串形式
+                    inqueryMap[pid] = groupno;
+                }
+                validCount++;
+            }
+        }
+    }
+    
+    addLog(QString("inquiry 数据处理: 共 %1 行，提取 %2 条有效数据")
+           .arg(rowCount).arg(validCount), "info");
+    
+    // 转换为 JSON 字符串
+    QJsonDocument doc(inqueryMap);
+    return QString::fromUtf8(doc.toJson(QJsonDocument::Compact));
 }
 
 void MainWindow::processAllPlayData()

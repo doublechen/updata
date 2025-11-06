@@ -63,6 +63,7 @@ private:
     void scheduleNextTask();
     void processAllPlayData();
     void fetchOnePlayData();
+    QString processInquiryHtml(const QString &html);
 
     // UI组件
     QWidget *centralWidget;
