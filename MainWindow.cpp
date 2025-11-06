@@ -1169,8 +1169,12 @@ void MainWindow::onOnePlayFinished()
                     if (scorePlayObj.contains("score") && !scorePlayObj.value("score").isNull()) {
                         QJsonValue scoreValue = scorePlayObj.value("score");
                         // 将score转为JSON字符串存储
-                        QJsonDocument scoreSubDoc(scoreValue.isObject() ? scoreValue.toObject() : 
-                                                   scoreValue.isArray() ? QJsonDocument(scoreValue.toArray()) : QJsonDocument());
+                        QJsonDocument scoreSubDoc;
+                        if (scoreValue.isObject()) {
+                            scoreSubDoc = QJsonDocument(scoreValue.toObject());
+                        } else if (scoreValue.isArray()) {
+                            scoreSubDoc = QJsonDocument(scoreValue.toArray());
+                        }
                         playObj["score"] = QString::fromUtf8(scoreSubDoc.toJson(QJsonDocument::Compact));
                     }
                     
@@ -1178,8 +1182,12 @@ void MainWindow::onOnePlayFinished()
                     if (scorePlayObj.contains("member") && !scorePlayObj.value("member").isNull()) {
                         QJsonValue memberValue = scorePlayObj.value("member");
                         // 将member转为JSON字符串存储
-                        QJsonDocument memberSubDoc(memberValue.isObject() ? memberValue.toObject() : 
-                                                    memberValue.isArray() ? QJsonDocument(memberValue.toArray()) : QJsonDocument());
+                        QJsonDocument memberSubDoc;
+                        if (memberValue.isObject()) {
+                            memberSubDoc = QJsonDocument(memberValue.toObject());
+                        } else if (memberValue.isArray()) {
+                            memberSubDoc = QJsonDocument(memberValue.toArray());
+                        }
                         playObj["member"] = QString::fromUtf8(memberSubDoc.toJson(QJsonDocument::Compact));
                     }
                     
