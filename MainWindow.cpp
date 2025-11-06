@@ -1103,14 +1103,19 @@ void MainWindow::fetchOnePlayData()
     // 从队列头部取出一个请求
     OnePlayRequest req = onePlayQueue.takeFirst();
     
-    // 构建请求URL
-    QUrl onePlayUrl(httpAddress + "/oneplay?pid=" + req.pid);
+    // 构建请求URL（不带参数）
+    QUrl onePlayUrl(httpAddress + "/oneplay");
     QNetworkRequest request(onePlayUrl);
     request.setRawHeader("User-Agent", "DataUploadTool/1.0");
     request.setHeader(QNetworkRequest::ContentTypeHeader, "application/x-www-form-urlencoded");
     
-    // 发送POST请求
-    currentOnePlayReply = networkManager->post(request, QByteArray());
+    // 构建POST body，将pid放在body中
+    QByteArray postData;
+    postData.append("pid=");
+    postData.append(req.pid.toUtf8());
+    
+    // 发送POST请求，带上body数据
+    currentOnePlayReply = networkManager->post(request, postData);
     
     // 将 matchIndex 和 playIndex 存储为 reply 的动态属性
     currentOnePlayReply->setProperty("matchIndex", req.matchIndex);
