@@ -727,7 +727,10 @@ void MainWindow::fetchData()
     rawInfoSuccess = false;
     allPlaySuccess = false;
     inquirySuccess = false;
-    pendingRequests = 3;
+    
+    // 判断是否需要获取 inquiry 数据（只在第一次获取）
+    bool needInquiry = (loopCount == 1);
+    pendingRequests = needInquiry ? 3 : 2;
     
     // 本地接口超时时间：5秒
     const int localTimeout = 5000;
@@ -752,16 +755,23 @@ void MainWindow::fetchData()
     // 设置超时定时器
     allPlayTimer->start(localTimeout);
     
-    // 获取InquiryPage数据
-    QUrl inquiryUrl(httpAddress + "/InquiryPage");
-    QNetworkRequest inquiryRequest(inquiryUrl);
-    inquiryRequest.setRawHeader("User-Agent", "DataUploadTool/1.0");
-    inquiryRequest.setHeader(QNetworkRequest::ContentTypeHeader, "application/x-www-form-urlencoded");
-    inquiryReply = networkManager->post(inquiryRequest, QByteArray());
-    connect(inquiryReply, &QNetworkReply::finished, this, &MainWindow::onInquiryFinished);
-    
-    // 设置超时定时器
-    inquiryTimer->start(localTimeout);
+    // 只在第一次获取InquiryPage数据
+    if (needInquiry) {
+        QUrl inquiryUrl(httpAddress + "/InquiryPage");
+        QNetworkRequest inquiryRequest(inquiryUrl);
+        inquiryRequest.setRawHeader("User-Agent", "DataUploadTool/1.0");
+        inquiryRequest.setHeader(QNetworkRequest::ContentTypeHeader, "application/x-www-form-urlencoded");
+        inquiryReply = networkManager->post(inquiryRequest, QByteArray());
+        connect(inquiryReply, &QNetworkReply::finished, this, &MainWindow::onInquiryFinished);
+        
+        // 设置超时定时器
+        inquiryTimer->start(localTimeout);
+        addLog("首次执行，获取 inquiry 数据", "info");
+    } else {
+        // 不是第一次，跳过 inquiry，直接标记为成功
+        inquirySuccess = true;
+        addLog("使用缓存的 inquiry 数据", "info");
+    }
 }
 
 void MainWindow::onRawInfoFinished()
@@ -908,7 +918,7 @@ void MainWindow::uploadData()
     // 统计数据量大小
     qint64 rawInfoSize = rawInfoData.trimmed().toUtf8().size();
     qint64 allPlaySize = allPlayData.trimmed().toUtf8().size();
-    qint64 inquirySize = inquiryData.trimmed().toUtf8().size();
+    qint64 inquirySize = (loopCount == 1) ? inquiryData.trimmed().toUtf8().size() : 0;
     qint64 totalSize = rawInfoSize + allPlaySize + inquirySize;
     
     // 转换为KB（保留2位小数）
@@ -921,7 +931,9 @@ void MainWindow::uploadData()
     addLog(QString("数据量统计:"), "info");
     // addLog(QString("  - rawinfo: %1 KB").arg(rawInfoKB, 0, 'f', 2), "info");
     // addLog(QString("  - allplay: %1 KB").arg(allPlayKB, 0, 'f', 2), "info");
-    // addLog(QString("  - inquiry: %1 KB").arg(inquiryKB, 0, 'f', 2), "info");
+    // if (loopCount == 1) {
+    //     addLog(QString("  - inquiry: %1 KB").arg(inquiryKB, 0, 'f', 2), "info");
+    // }
     addLog(QString("  - 总计: %1 KB").arg(totalKB, 0, 'f', 2), "success");
     
     // 生成multipart边界
@@ -954,12 +966,14 @@ void MainWindow::uploadData()
     allplayPart.setBody(allPlayData.trimmed().toUtf8());
     multiPart->append(allplayPart);
     
-    // inquiry字段
-    QHttpPart inquiryPart;
-    inquiryPart.setHeader(QNetworkRequest::ContentDispositionHeader, 
-                         QVariant("form-data; name=\"inquiry\""));
-    inquiryPart.setBody(inquiryData.trimmed().toUtf8());
-    multiPart->append(inquiryPart);
+    // inquiry字段（只在第一次上传）
+    if (loopCount == 1 && !inquiryData.isEmpty()) {
+        QHttpPart inquiryPart;
+        inquiryPart.setHeader(QNetworkRequest::ContentDispositionHeader, 
+                             QVariant("form-data; name=\"inquiry\""));
+        inquiryPart.setBody(inquiryData.trimmed().toUtf8());
+        multiPart->append(inquiryPart);
+    }
     
     // addLog("准备上传multipart/form-data", "info");
     // addLog("rawinfo长度: " + QString::number(rawInfoData.trimmed().length()) + " 字符", "info");
@@ -1123,8 +1137,8 @@ QString MainWindow::processInquiryHtml(const QString &html)
         }
     }
     
-    addLog(QString("inquiry 数据处理: 共 %1 行，提取 %2 条有效数据")
-           .arg(rowCount).arg(validCount), "info");
+    // addLog(QString("inquiry 数据处理: 共 %1 行，提取 %2 条有效数据")
+    //        .arg(rowCount).arg(validCount), "info");
     
     // 转换为 JSON 字符串
     QJsonDocument doc(inqueryMap);
