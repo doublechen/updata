@@ -532,19 +532,11 @@ jobs:
         }
         Write-Host "========================================" -ForegroundColor Green
     
-    - name: Create portable package
-      run: |
-        # 创建便携版压缩包（包含所有依赖）
-        Compress-Archive -Path release\* -DestinationPath DataUploadTool-Portable.zip -Force
-        Write-Host "已创建便携版压缩包: DataUploadTool-Portable.zip" -ForegroundColor Green
-        Write-Host "要创建单个 exe 文件，请使用 Enigma Virtual Box 或参考 PACKAGING.md" -ForegroundColor Yellow
-    
     - name: Upload artifacts
       uses: actions/upload-artifact@v4
       with:
         name: DataUploadTool-Windows-EXE
         path: |
           release/*
-          DataUploadTool-Portable.*
         retention-days: 30
 
