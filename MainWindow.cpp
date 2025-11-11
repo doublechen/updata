@@ -96,7 +96,7 @@ MainWindow::MainWindow(QWidget *parent)
     setupUI();
     setupStyles();
     
-    setWindowTitle("40+成绩发布系统");
+    setWindowTitle("40+成绩发布系统V1.0.1beta");
     resize(1600, 1000);
 }
 
