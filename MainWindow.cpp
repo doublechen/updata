@@ -23,7 +23,7 @@
 
 // 定义SECRET_KEY常量（请根据实际情况修改此值）
 const QString MainWindow::SECRET_KEY = "Y+Dh=@!=sJnDnlW3u-aY";
-const QString MainWindow::UPLOAD_URL = "https://www.40plus.cn/api/sszs/tool-upload";
+const QString MainWindow::UPLOAD_URL = "http://tt-tools.test/api/sszs/tool-upload";
 const QString MainWindow::VERSION = "V1.0.2dev";
 
 MainWindow::MainWindow(QWidget *parent)
