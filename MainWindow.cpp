@@ -36,6 +36,8 @@ MainWindow::MainWindow(QWidget *parent)
     , allPlaySuccess(false)
     , inquirySuccess(false)
     , playrankSuccess(false)
+    , onePlaySuccess(false)
+    , isUploading(false)
     , rawInfoReply(nullptr)
     , allPlayReply(nullptr)
     , inquiryReply(nullptr)
@@ -633,6 +635,7 @@ void MainWindow::onStopClicked()
     completedPlayrankRequests = 0;
     playrankSuccess = false;
     playranksData.clear();
+    isUploading = false;
     
     taskTimer->stop();
     
@@ -752,6 +755,8 @@ void MainWindow::fetchData()
     allPlaySuccess = false;
     inquirySuccess = false;
     playrankSuccess = false;
+    onePlaySuccess = false;
+    isUploading = false;
     playranksData.clear();
     playrankQueue.clear();
     playrankResults.clear();
@@ -974,15 +979,39 @@ void MainWindow::onInquiryFinished()
 
 void MainWindow::checkDataAndUpload()
 {
-    if (rawInfoSuccess && allPlaySuccess && inquirySuccess && playrankSuccess) {
+    // 如果正在上传，直接返回，防止重复上传
+    if (isUploading) {
+        return;
+    }
+    
+    // 检查所有必需的数据是否都已准备好
+    // 必需数据：rawInfo, allPlay, inquiry, playrank, onePlay
+    bool allDataReady = rawInfoSuccess && allPlaySuccess && inquirySuccess && playrankSuccess && onePlaySuccess;
+    
+    if (allDataReady) {
+        isUploading = true; // 设置上传标志
         addLog("数据获取成功，准备上传", "success");
         uploadData();
     } else {
-        // 如果playrank还在进行中，等待完成
-        if (rawInfoSuccess && allPlaySuccess && inquirySuccess && !playrankSuccess && completedPlayrankRequests < totalPlayrankRequests) {
-            // playrank还在处理中，等待完成
+        // 检查哪些数据还在进行中
+        bool waitingForData = false;
+        
+        // 检查playrank是否还在进行中
+        if (!playrankSuccess && totalPlayrankRequests > 0 && completedPlayrankRequests < totalPlayrankRequests) {
+            waitingForData = true;
+        }
+        
+        // 检查onePlay是否还在进行中
+        if (!onePlaySuccess && totalOnePlayRequests > 0 && completedOnePlayRequests < totalOnePlayRequests) {
+            waitingForData = true;
+        }
+        
+        if (waitingForData) {
+            // 数据还在处理中，等待完成
             return;
         }
+        
+        // 如果数据获取失败，跳过本次上传
         addLog("数据获取失败，跳过本次上传", "warning");
         scheduleNextTask();
     }
@@ -994,12 +1023,14 @@ void MainWindow::uploadData()
     qint64 rawInfoSize = rawInfoData.trimmed().toUtf8().size();
     qint64 allPlaySize = allPlayData.trimmed().toUtf8().size();
     qint64 inquirySize = (loopCount == 1) ? inquiryData.trimmed().toUtf8().size() : 0;
-    qint64 totalSize = rawInfoSize + allPlaySize + inquirySize;
+    qint64 playranksSize = playranksData.toUtf8().size();
+    qint64 totalSize = rawInfoSize + allPlaySize + inquirySize + playranksSize;
     
     // 转换为KB（保留2位小数）
     double rawInfoKB = rawInfoSize / 1024.0;
     double allPlayKB = allPlaySize / 1024.0;
     double inquiryKB = inquirySize / 1024.0;
+    double playranksKB = playranksSize / 1024.0;
     double totalKB = totalSize / 1024.0;
     
     // 输出统计信息
@@ -1027,12 +1058,6 @@ void MainWindow::uploadData()
     keyPart.setBody(apiKey.toUtf8());
     multiPart->append(keyPart);
 
-    // version字段
-    QHttpPart versionPart;
-    keyPart.setHeader(QNetworkRequest::ContentDispositionHeader, 
-                     QVariant("form-data; name=\"version\""));
-    versionPart.setBody(VERSION.toUtf8());
-    multiPart->append(versionPart);
     
     // rawinfo字段
     QHttpPart rawinfoPart;
@@ -1075,6 +1100,7 @@ void MainWindow::uploadData()
     QUrl uploadUrlWithKey = QUrl(uploadUrl);
     QUrlQuery query;
     query.addQueryItem("key", apiKey);
+    query.addQueryItem("version", VERSION);
     uploadUrlWithKey.setQuery(query);
     
     QNetworkRequest uploadRequest(uploadUrlWithKey);
@@ -1129,6 +1155,8 @@ void MainWindow::onUploadFinished()
     
     uploadReply->deleteLater();
     uploadReply = nullptr;
+    
+    isUploading = false; // 重置上传标志
     
     scheduleNextTask();
 }
@@ -1240,9 +1268,10 @@ void MainWindow::processAllPlayData()
 {
     // addLog("=== 开始处理allplay数据 ===", "info");
     
-    // 如果allplay数据获取失败，直接进入检查和上传流程
+    // 如果allplay数据获取失败，标记onePlay为完成并进入检查和上传流程
     if (!allPlaySuccess) {
         // addLog("allplay数据获取失败，跳过处理", "warning");
+        onePlaySuccess = true; // 标记为完成（虽然失败，但不需要等待）
         checkDataAndUpload();
         return;
     }
@@ -1253,6 +1282,7 @@ void MainWindow::processAllPlayData()
     
     if (parseError.error != QJsonParseError::NoError || !allPlayJson.isObject()) {
         // addLog("解析allplay数据失败: " + parseError.errorString(), "error");
+        onePlaySuccess = true; // 标记为完成（虽然失败，但不需要等待）
         checkDataAndUpload();
         return;
     }
@@ -1264,6 +1294,7 @@ void MainWindow::processAllPlayData()
     onePlayQueue.clear();
     totalOnePlayRequests = 0;
     completedOnePlayRequests = 0;
+    onePlaySuccess = false;
     
     // 统计各种状态的比赛数量
     int totalPlays = 0;
@@ -1301,9 +1332,11 @@ void MainWindow::processAllPlayData()
     
     totalOnePlayRequests = onePlayQueue.size();
     
-    // 如果没有需要请求的play，直接进入上传流程
+    // 如果没有需要请求的play，直接标记为完成
     if (totalOnePlayRequests == 0) {
         addLog("没有需要更新的比赛数据", "info");
+        onePlaySuccess = true;
+        // 检查是否可以上传（等待其他数据准备好）
         checkDataAndUpload();
         return;
     }
@@ -1482,7 +1515,10 @@ void MainWindow::onOnePlayFinished()
         // 将更新后的JSON转回字符串
         allPlayData = QString::fromUtf8(allPlayJson.toJson(QJsonDocument::Compact));
         
-        // 继续上传流程
+        // 标记onePlay完成
+        onePlaySuccess = true;
+        
+        // 检查是否可以上传（等待其他数据准备好）
         checkDataAndUpload();
     } else {
         // 继续处理队列中的下一个请求

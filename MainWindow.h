@@ -117,6 +117,8 @@ private:
     bool allPlaySuccess;
     bool inquirySuccess;
     bool playrankSuccess;
+    bool onePlaySuccess; // onePlay请求完成标志
+    bool isUploading; // 防止重复上传标志
     QNetworkReply *rawInfoReply;
     QNetworkReply *allPlayReply;
     QNetworkReply *inquiryReply;
