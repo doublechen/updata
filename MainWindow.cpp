@@ -23,13 +23,15 @@
 
 // 定义SECRET_KEY常量（请根据实际情况修改此值）
 const QString MainWindow::SECRET_KEY = "Y+Dh=@!=sJnDnlW3u-aY";
+const QString MainWindow::UPLOAD_URL = "http://tt-tools.test/api/sszs/tool-upload";
+const QString MainWindow::VERSION = "V1.0.2dev";
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
     , isRunning(false)
     , loopCount(0)
     , intervalTime(180)
-    , uploadUrl("http://tt-tools.test/api/sszs/tool-upload")
+    , uploadUrl(UPLOAD_URL)
     , rawInfoSuccess(false)
     , allPlaySuccess(false)
     , inquirySuccess(false)
@@ -100,7 +102,7 @@ MainWindow::MainWindow(QWidget *parent)
     setupUI();
     setupStyles();
     
-    setWindowTitle("40+成绩发布系统V1.0.1beta");
+    setWindowTitle("40+成绩发布系统-" + VERSION);
     resize(1600, 1000);
 }
 
@@ -1024,6 +1026,13 @@ void MainWindow::uploadData()
                      QVariant("form-data; name=\"key\""));
     keyPart.setBody(apiKey.toUtf8());
     multiPart->append(keyPart);
+
+    // version字段
+    QHttpPart versionPart;
+    keyPart.setHeader(QNetworkRequest::ContentDispositionHeader, 
+                     QVariant("form-data; name=\"version\""));
+    versionPart.setBody(VERSION.toUtf8());
+    multiPart->append(versionPart);
     
     // rawinfo字段
     QHttpPart rawinfoPart;
