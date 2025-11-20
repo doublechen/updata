@@ -91,7 +91,7 @@ int main(int argc, char *argv[])
         // 设置应用程序信息
         app.setApplicationName("40plusDataUploadSystem");
         app.setApplicationVersion("1.0.0");
-        app.setOrganizationName("DataUploadTool");
+        app.setOrganizationName("40plus");
         
         // 初始化启动日志
         QString appDir = QCoreApplication::applicationDirPath();
