@@ -833,6 +833,11 @@ void MainWindow::onRawInfoFinished()
         if (encoding != "UTF-8") {
             // addLog("检测到源服务器使用" + encoding + "编码，已转换为UTF-8", "info");
         }
+
+        // 清理JSON数据 - 替换可能导致解析失败的模式
+        rawInfoData.replace(":,", ":\"\",");   // 替换 :, 为 :"",
+        rawInfoData.replace(":}", ":\"\"}");   // 替换 :} 为 :""}
+        rawInfoData.replace(":]", ":\"\"]");   // 替换 :] 为 :""]
         
         // 解析rawInfo JSON，提取match数组的key字段
         QJsonParseError parseError;
