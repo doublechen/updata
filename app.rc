@@ -19,12 +19,12 @@ BEGIN
         BLOCK "080404b0"
         BEGIN
             VALUE "CompanyName", "Chenc"
-            VALUE "FileDescription", "40+成绩发布系统"
+            VALUE "FileDescription", "40plusDataUploadSystem"
             VALUE "FileVersion", "1.0.0.0"
-            VALUE "InternalName", "DataUploadTool"
+            VALUE "InternalName", "40plusDataUploadSystem"
             VALUE "LegalCopyright", "Copyright (C) CHENC 2025"
-            VALUE "OriginalFilename", "40plus成绩发布.exe"
-            VALUE "ProductName", "40+成绩发布系统"
+            VALUE "OriginalFilename", "40plusDataUploadSystem.exe"
+            VALUE "ProductName", "40plusDataUploadSystem"
             VALUE "ProductVersion", "1.0.0.0"
         END
     END
