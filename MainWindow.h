@@ -45,6 +45,7 @@ private slots:
     void onInquiryFinished();
     void onUploadFinished();
     void onOnePlayFinished();
+    void onPlayrankFinished();
     void executeTask();
 
 private:
@@ -63,6 +64,7 @@ private:
     void scheduleNextTask();
     void processAllPlayData();
     void fetchOnePlayData();
+    void fetchPlayrankData();
     QString processInquiryHtml(const QString &html);
 
     // UI组件
@@ -108,15 +110,18 @@ private:
     QString rawInfoData;
     QString allPlayData;
     QString inquiryData;
+    QString playranksData;
     
     // 请求状态
     bool rawInfoSuccess;
     bool allPlaySuccess;
     bool inquirySuccess;
+    bool playrankSuccess;
     QNetworkReply *rawInfoReply;
     QNetworkReply *allPlayReply;
     QNetworkReply *inquiryReply;
     QNetworkReply *uploadReply;
+    QNetworkReply *currentPlayrankReply;
     
     // 超时定时器
     QTimer *rawInfoTimer;
@@ -137,6 +142,12 @@ private:
     QList<OnePlayRequest> onePlayQueue; // 待处理的请求队列
     int totalOnePlayRequests; // 总请求数
     int completedOnePlayRequests; // 已完成的请求数
+    
+    // playrank请求相关
+    QList<QString> playrankQueue; // 待处理的key队列
+    QList<QString> playrankResults; // 收集的playrank响应数据
+    int totalPlayrankRequests; // 总请求数
+    int completedPlayrankRequests; // 已完成的请求数
     
     // 日志文件
     QFile *logFile;

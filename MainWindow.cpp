@@ -29,14 +29,16 @@ MainWindow::MainWindow(QWidget *parent)
     , isRunning(false)
     , loopCount(0)
     , intervalTime(180)
-    , uploadUrl("https://www.40plus.cn/api/sszs/tool-upload")
+    , uploadUrl("http://tt-tools.test/api/sszs/tool-upload")
     , rawInfoSuccess(false)
     , allPlaySuccess(false)
     , inquirySuccess(false)
+    , playrankSuccess(false)
     , rawInfoReply(nullptr)
     , allPlayReply(nullptr)
     , inquiryReply(nullptr)
     , uploadReply(nullptr)
+    , currentPlayrankReply(nullptr)
     , rawInfoTimer(nullptr)
     , allPlayTimer(nullptr)
     , inquiryTimer(nullptr)
@@ -45,6 +47,8 @@ MainWindow::MainWindow(QWidget *parent)
     , currentOnePlayReply(nullptr)
     , totalOnePlayRequests(0)
     , completedOnePlayRequests(0)
+    , totalPlayrankRequests(0)
+    , completedPlayrankRequests(0)
     , logFile(nullptr)
     , logStream(nullptr)
 {
@@ -615,6 +619,19 @@ void MainWindow::onStopClicked()
     totalOnePlayRequests = 0;
     completedOnePlayRequests = 0;
     
+    // 清理playrank相关
+    if (currentPlayrankReply) {
+        currentPlayrankReply->abort();
+        currentPlayrankReply->deleteLater();
+        currentPlayrankReply = nullptr;
+    }
+    playrankQueue.clear();
+    playrankResults.clear();
+    totalPlayrankRequests = 0;
+    completedPlayrankRequests = 0;
+    playrankSuccess = false;
+    playranksData.clear();
+    
     taskTimer->stop();
     
     updateUIState(false);
@@ -732,6 +749,12 @@ void MainWindow::fetchData()
     rawInfoSuccess = false;
     allPlaySuccess = false;
     inquirySuccess = false;
+    playrankSuccess = false;
+    playranksData.clear();
+    playrankQueue.clear();
+    playrankResults.clear();
+    totalPlayrankRequests = 0;
+    completedPlayrankRequests = 0;
     
     // 判断是否需要获取 inquiry 数据（只在第一次获取）
     bool needInquiry = (loopCount == 1);
@@ -803,9 +826,49 @@ void MainWindow::onRawInfoFinished()
         if (encoding != "UTF-8") {
             // addLog("检测到源服务器使用" + encoding + "编码，已转换为UTF-8", "info");
         }
+        
+        // 解析rawInfo JSON，提取match数组的key字段
+        QJsonParseError parseError;
+        QJsonDocument doc = QJsonDocument::fromJson(rawInfoData.toUtf8(), &parseError);
+        
+        if (parseError.error == QJsonParseError::NoError && doc.isObject()) {
+            QJsonObject obj = doc.object();
+            QJsonArray matchArray = obj.value("match").toArray();
+            
+            // 清空队列和结果
+            playrankQueue.clear();
+            playrankResults.clear();
+            
+            // 提取每个match的key字段
+            for (int i = 0; i < matchArray.size(); i++) {
+                QJsonObject matchObj = matchArray[i].toObject();
+                QString key = matchObj.value("key").toString();
+                if (!key.isEmpty()) {
+                    playrankQueue.append(key);
+                }
+            }
+            
+            totalPlayrankRequests = playrankQueue.size();
+            completedPlayrankRequests = 0;
+            
+            if (totalPlayrankRequests > 0) {
+                // 开始循环调用playrank接口
+                fetchPlayrankData();
+            } else {
+                // 没有需要请求的key，直接标记为完成
+                playrankSuccess = true;
+                playranksData = "[]"; // 空数组
+            }
+        } else {
+            addLog("解析rawInfo JSON失败: " + parseError.errorString(), "error");
+            playrankSuccess = false;
+            playranksData = "[]";
+        }
     } else {
         addLog("获取赛程数据失败: " + rawInfoReply->errorString(), "error");
         rawInfoSuccess = false;
+        playrankSuccess = false;
+        playranksData = "[]";
     }
     
     rawInfoReply->deleteLater();
@@ -909,10 +972,15 @@ void MainWindow::onInquiryFinished()
 
 void MainWindow::checkDataAndUpload()
 {
-    if (rawInfoSuccess && allPlaySuccess && inquirySuccess) {
+    if (rawInfoSuccess && allPlaySuccess && inquirySuccess && playrankSuccess) {
         addLog("数据获取成功，准备上传", "success");
         uploadData();
     } else {
+        // 如果playrank还在进行中，等待完成
+        if (rawInfoSuccess && allPlaySuccess && inquirySuccess && !playrankSuccess && completedPlayrankRequests < totalPlayrankRequests) {
+            // playrank还在处理中，等待完成
+            return;
+        }
         addLog("数据获取失败，跳过本次上传", "warning");
         scheduleNextTask();
     }
@@ -978,6 +1046,15 @@ void MainWindow::uploadData()
                              QVariant("form-data; name=\"inquiry\""));
         inquiryPart.setBody(inquiryData.trimmed().toUtf8());
         multiPart->append(inquiryPart);
+    }
+    
+    // playranks字段
+    if (!playranksData.isEmpty()) {
+        QHttpPart playranksPart;
+        playranksPart.setHeader(QNetworkRequest::ContentDispositionHeader, 
+                               QVariant("form-data; name=\"playranks\""));
+        playranksPart.setBody(playranksData.toUtf8());
+        multiPart->append(playranksPart);
     }
     
     // addLog("准备上传multipart/form-data", "info");
@@ -1401,6 +1478,116 @@ void MainWindow::onOnePlayFinished()
     } else {
         // 继续处理队列中的下一个请求
         fetchOnePlayData();
+    }
+}
+
+void MainWindow::fetchPlayrankData()
+{
+    // 如果队列为空，说明所有请求都已完成
+    if (playrankQueue.isEmpty()) {
+        return;
+    }
+    
+    // 如果已经有正在进行的请求，不要重复发送
+    if (currentPlayrankReply && currentPlayrankReply->isRunning()) {
+        return;
+    }
+    
+    // 从队列头部取出一个key
+    QString key = playrankQueue.takeFirst();
+    
+    // 构建请求URL
+    QUrl playrankUrl(httpAddress + "/playrank");
+    QNetworkRequest request(playrankUrl);
+    request.setRawHeader("User-Agent", "DataUploadTool/1.0");
+    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/x-www-form-urlencoded");
+    
+    // 构建POST body，将key放在body中
+    QByteArray postData;
+    postData.append("key=");
+    postData.append(QUrl::toPercentEncoding(key));
+    
+    // 发送POST请求，带上body数据
+    currentPlayrankReply = networkManager->post(request, postData);
+    
+    // 将key存储为reply的动态属性
+    currentPlayrankReply->setProperty("key", key);
+    
+    // 连接完成信号
+    connect(currentPlayrankReply, &QNetworkReply::finished, this, &MainWindow::onPlayrankFinished);
+}
+
+void MainWindow::onPlayrankFinished()
+{
+    QNetworkReply *reply = qobject_cast<QNetworkReply*>(sender());
+    if (!reply) {
+        return;
+    }
+    
+    // 从动态属性中获取key
+    QString key = reply->property("key").toString();
+    
+    // 处理响应
+    if (reply->error() == QNetworkReply::NoError) {
+        QByteArray data = reply->readAll();
+        QString encoding = detectEncoding(data);
+        QString playrankData = convertToUtf8(data, encoding);
+        
+        // 将响应数据添加到结果列表
+        playrankResults.append(playrankData);
+    } else {
+        // 请求失败，添加空字符串或错误标记
+        addLog("获取playrank数据失败，key: " + key + ", 错误: " + reply->errorString(), "warning");
+        playrankResults.append(""); // 添加空字符串保持索引一致
+    }
+    
+    // 清理当前请求
+    reply->deleteLater();
+    currentPlayrankReply = nullptr;
+    
+    // 计数器增加
+    completedPlayrankRequests++;
+    
+    // 检查是否所有请求都完成
+    if (completedPlayrankRequests >= totalPlayrankRequests) {
+        // 将所有结果打包成JSON数组
+        QJsonArray playranksArray;
+        for (const QString &result : playrankResults) {
+            if (!result.isEmpty()) {
+                // 尝试解析为JSON，如果成功则添加解析后的对象，否则添加为字符串
+                QJsonParseError parseError;
+                QJsonDocument doc = QJsonDocument::fromJson(result.toUtf8(), &parseError);
+                if (parseError.error == QJsonParseError::NoError) {
+                    if (doc.isArray()) {
+                        // 如果是数组，将数组中的每个元素添加到playranksArray
+                        QJsonArray resultArray = doc.array();
+                        for (const QJsonValue &value : resultArray) {
+                            playranksArray.append(value);
+                        }
+                    } else if (doc.isObject()) {
+                        playranksArray.append(doc.object());
+                    } else {
+                        playranksArray.append(result);
+                    }
+                } else {
+                    // 解析失败，作为字符串添加
+                    playranksArray.append(result);
+                }
+            }
+        }
+        
+        // 转换为JSON字符串
+        QJsonDocument playranksDoc(playranksArray);
+        playranksData = QString::fromUtf8(playranksDoc.toJson(QJsonDocument::Compact));
+        
+        playrankSuccess = true;
+        // addLog("所有playrank数据已处理完成", "success");
+        
+        // 检查是否可以上传（如果其他数据都已准备好）
+        checkDataAndUpload();
+    } else {
+        // 继续处理下一个请求
+        fetchPlayrankData();
     }
 }
 
