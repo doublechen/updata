@@ -155,6 +155,8 @@ private:
     
     // 密钥验证常量
     static const QString SECRET_KEY;
+    static const QString UPLOAD_URL;
+    static const QString VERSION;
 };
 
 #endif // MAINWINDOW_H
