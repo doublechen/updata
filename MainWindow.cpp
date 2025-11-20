@@ -42,11 +42,13 @@ MainWindow::MainWindow(QWidget *parent)
     , allPlayReply(nullptr)
     , inquiryReply(nullptr)
     , uploadReply(nullptr)
+    , currentPlayrankReply(nullptr)
     , rawInfoTimer(nullptr)
     , allPlayTimer(nullptr)
     , inquiryTimer(nullptr)
     , uploadTimer(nullptr)
     , pendingRequests(0)
+    , currentOnePlayReply(nullptr)
     , totalOnePlayRequests(0)
     , completedOnePlayRequests(0)
     , totalPlayrankRequests(0)
@@ -612,25 +614,21 @@ void MainWindow::onStopClicked()
     }
     
     // 取消当前的oneplay请求并清空队列
-    for (QNetworkReply *reply : activeOnePlayReplies) {
-        if (reply) {
-            reply->abort();
-            reply->deleteLater();
-        }
+    if (currentOnePlayReply) {
+        currentOnePlayReply->abort();
+        currentOnePlayReply->deleteLater();
+        currentOnePlayReply = nullptr;
     }
-    activeOnePlayReplies.clear();
     onePlayQueue.clear();
     totalOnePlayRequests = 0;
     completedOnePlayRequests = 0;
     
     // 清理playrank相关
-    for (QNetworkReply *reply : activePlayrankReplies) {
-        if (reply) {
-            reply->abort();
-            reply->deleteLater();
-        }
+    if (currentPlayrankReply) {
+        currentPlayrankReply->abort();
+        currentPlayrankReply->deleteLater();
+        currentPlayrankReply = nullptr;
     }
-    activePlayrankReplies.clear();
     playrankQueue.clear();
     playrankResults.clear();
     totalPlayrankRequests = 0;
@@ -764,14 +762,6 @@ void MainWindow::fetchData()
     playrankResults.clear();
     totalPlayrankRequests = 0;
     completedPlayrankRequests = 0;
-    // 清理活动的playrank请求
-    for (QNetworkReply *reply : activePlayrankReplies) {
-        if (reply) {
-            reply->abort();
-            reply->deleteLater();
-        }
-    }
-    activePlayrankReplies.clear();
     
     // 判断是否需要获取 inquiry 数据（只在第一次获取）
     bool needInquiry = (loopCount == 1);
@@ -1301,14 +1291,6 @@ void MainWindow::processAllPlayData()
     QJsonArray matchArray = allPlayObj.value("match").toArray();
     
     // 清空队列
-    // 清理活动的onePlay请求
-    for (QNetworkReply *reply : activeOnePlayReplies) {
-        if (reply) {
-            reply->abort();
-            reply->deleteLater();
-        }
-    }
-    activeOnePlayReplies.clear();
     onePlayQueue.clear();
     totalOnePlayRequests = 0;
     completedOnePlayRequests = 0;
@@ -1367,45 +1349,46 @@ void MainWindow::processAllPlayData()
 
 void MainWindow::fetchOnePlayData()
 {
-    // 并行发送多个请求（最多5个同时进行）
-    const int maxConcurrentRequests = 5;
-    
-    // 继续发送请求，直到达到最大并发数或队列为空
-    while (!onePlayQueue.isEmpty() && activeOnePlayReplies.size() < maxConcurrentRequests) {
-        // 从队列头部取出一个请求
-        OnePlayRequest req = onePlayQueue.takeFirst();
-        
-        // 构建请求URL（不带参数）
-        QUrl onePlayUrl(httpAddress + "/oneplay");
-        QNetworkRequest request(onePlayUrl);
-        request.setRawHeader("User-Agent", "DataUploadTool/1.0");
-        request.setHeader(QNetworkRequest::ContentTypeHeader, "application/x-www-form-urlencoded");
-        
-        // 构建POST body，将pid放在body中
-        QByteArray postData;
-        postData.append("pid=");
-        postData.append(req.pid.toUtf8());
-        
-        // 发送POST请求，带上body数据
-        QNetworkReply *reply = networkManager->post(request, postData);
-        
-        // 将 matchIndex 和 playIndex 存储为 reply 的动态属性
-        reply->setProperty("matchIndex", req.matchIndex);
-        reply->setProperty("playIndex", req.playIndex);
-        reply->setProperty("pid", req.pid);
-        
-        // 添加到活动列表
-        activeOnePlayReplies.append(reply);
-        
-        // 连接完成信号
-        connect(reply, &QNetworkReply::finished, this, &MainWindow::onOnePlayFinished);
-        
-        // 显示进度
-        // addLog(QString("正在请求比赛详细数据 (%1/%2) PID: %3")
-        //        .arg(completedOnePlayRequests + 1)
-        //        .arg(totalOnePlayRequests)
-        //        .arg(req.pid), "info");
+    // 如果队列为空，说明所有请求都已完成
+    if (onePlayQueue.isEmpty()) {
+        return;
     }
+    
+    // 如果已经有正在进行的请求，不要重复发送
+    if (currentOnePlayReply && currentOnePlayReply->isRunning()) {
+        return;
+    }
+    
+    // 从队列头部取出一个请求
+    OnePlayRequest req = onePlayQueue.takeFirst();
+    
+    // 构建请求URL（不带参数）
+    QUrl onePlayUrl(httpAddress + "/oneplay");
+    QNetworkRequest request(onePlayUrl);
+    request.setRawHeader("User-Agent", "DataUploadTool/1.0");
+    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/x-www-form-urlencoded");
+    
+    // 构建POST body，将pid放在body中
+    QByteArray postData;
+    postData.append("pid=");
+    postData.append(req.pid.toUtf8());
+    
+    // 发送POST请求，带上body数据
+    currentOnePlayReply = networkManager->post(request, postData);
+    
+    // 将 matchIndex 和 playIndex 存储为 reply 的动态属性
+    currentOnePlayReply->setProperty("matchIndex", req.matchIndex);
+    currentOnePlayReply->setProperty("playIndex", req.playIndex);
+    currentOnePlayReply->setProperty("pid", req.pid);
+    
+    // 连接完成信号
+    connect(currentOnePlayReply, &QNetworkReply::finished, this, &MainWindow::onOnePlayFinished);
+    
+    // 显示进度
+    // addLog(QString("正在请求比赛详细数据 (%1/%2) PID: %3")
+    //        .arg(completedOnePlayRequests + 1)
+    //        .arg(totalOnePlayRequests)
+    //        .arg(req.pid), "info");
 }
 
 void MainWindow::onOnePlayFinished()
@@ -1414,9 +1397,6 @@ void MainWindow::onOnePlayFinished()
     if (!reply) {
         return;
     }
-    
-    // 从活动列表中移除
-    activeOnePlayReplies.removeAll(reply);
     
     // 从动态属性中获取索引
     int matchIdx = reply->property("matchIndex").toInt();
@@ -1523,6 +1503,7 @@ void MainWindow::onOnePlayFinished()
     
     // 清理当前请求
     reply->deleteLater();
+    currentOnePlayReply = nullptr;
     
     // 计数器增加
     completedOnePlayRequests++;
@@ -1540,44 +1521,45 @@ void MainWindow::onOnePlayFinished()
         // 检查是否可以上传（等待其他数据准备好）
         checkDataAndUpload();
     } else {
-        // 继续发送更多请求（如果有队列中的请求）
+        // 继续处理队列中的下一个请求
         fetchOnePlayData();
     }
 }
 
 void MainWindow::fetchPlayrankData()
 {
-    // 并行发送多个请求（最多5个同时进行）
-    const int maxConcurrentRequests = 5;
-    
-    // 继续发送请求，直到达到最大并发数或队列为空
-    while (!playrankQueue.isEmpty() && activePlayrankReplies.size() < maxConcurrentRequests) {
-        // 从队列头部取出一个key
-        QString key = playrankQueue.takeFirst();
-        
-        // 构建请求URL
-        QUrl playrankUrl(httpAddress + "/playrank");
-        QNetworkRequest request(playrankUrl);
-        request.setRawHeader("User-Agent", "DataUploadTool/1.0");
-        request.setHeader(QNetworkRequest::ContentTypeHeader, "application/x-www-form-urlencoded");
-        
-        // 构建POST body，将key放在body中
-        QByteArray postData;
-        postData.append("key=");
-        postData.append(QUrl::toPercentEncoding(key));
-        
-        // 发送POST请求，带上body数据
-        QNetworkReply *reply = networkManager->post(request, postData);
-        
-        // 将key存储为reply的动态属性
-        reply->setProperty("key", key);
-        
-        // 添加到活动列表
-        activePlayrankReplies.append(reply);
-        
-        // 连接完成信号
-        connect(reply, &QNetworkReply::finished, this, &MainWindow::onPlayrankFinished);
+    // 如果队列为空，说明所有请求都已完成
+    if (playrankQueue.isEmpty()) {
+        return;
     }
+    
+    // 如果已经有正在进行的请求，不要重复发送
+    if (currentPlayrankReply && currentPlayrankReply->isRunning()) {
+        return;
+    }
+    
+    // 从队列头部取出一个key
+    QString key = playrankQueue.takeFirst();
+    
+    // 构建请求URL
+    QUrl playrankUrl(httpAddress + "/playrank");
+    QNetworkRequest request(playrankUrl);
+    request.setRawHeader("User-Agent", "DataUploadTool/1.0");
+    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/x-www-form-urlencoded");
+    
+    // 构建POST body，将key放在body中
+    QByteArray postData;
+    postData.append("key=");
+    postData.append(QUrl::toPercentEncoding(key));
+    
+    // 发送POST请求，带上body数据
+    currentPlayrankReply = networkManager->post(request, postData);
+    
+    // 将key存储为reply的动态属性
+    currentPlayrankReply->setProperty("key", key);
+    
+    // 连接完成信号
+    connect(currentPlayrankReply, &QNetworkReply::finished, this, &MainWindow::onPlayrankFinished);
 }
 
 void MainWindow::onPlayrankFinished()
@@ -1586,9 +1568,6 @@ void MainWindow::onPlayrankFinished()
     if (!reply) {
         return;
     }
-    
-    // 从活动列表中移除
-    activePlayrankReplies.removeAll(reply);
     
     // 从动态属性中获取key
     QString key = reply->property("key").toString();
@@ -1609,6 +1588,7 @@ void MainWindow::onPlayrankFinished()
     
     // 清理当前请求
     reply->deleteLater();
+    currentPlayrankReply = nullptr;
     
     // 计数器增加
     completedPlayrankRequests++;
@@ -1651,7 +1631,7 @@ void MainWindow::onPlayrankFinished()
         // 检查是否可以上传（如果其他数据都已准备好）
         checkDataAndUpload();
     } else {
-        // 继续发送更多请求（如果有队列中的请求）
+        // 继续处理下一个请求
         fetchPlayrankData();
     }
 }

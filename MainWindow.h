@@ -123,7 +123,7 @@ private:
     QNetworkReply *allPlayReply;
     QNetworkReply *inquiryReply;
     QNetworkReply *uploadReply;
-    QList<QNetworkReply*> activePlayrankReplies; // 并行请求的playrank回复列表
+    QNetworkReply *currentPlayrankReply;
     
     // 超时定时器
     QTimer *rawInfoTimer;
@@ -135,7 +135,7 @@ private:
     
     // oneplay请求相关
     QJsonDocument allPlayJson;
-    QList<QNetworkReply*> activeOnePlayReplies; // 并行请求的onePlay回复列表
+    QNetworkReply *currentOnePlayReply;
     struct OnePlayRequest {
         int matchIndex;
         int playIndex;
